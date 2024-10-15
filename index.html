@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>!Chat with OpenAI GPT-4o</title>
+    <title>Chat with OpenAI GPT-4o</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -145,9 +145,9 @@
                     const responseTimestamp = new Date().toLocaleTimeString();
                     if (response.ok) {
                         const answerDiv = document.createElement('div');
-                        answerDiv.className = 'message';
                         // Parse Markdown for GPT-4o responses
                         const htmlContent = marked.parse(data.answer);
+                        answerDiv.className = 'message';
                         answerDiv.innerHTML = `<strong>GPT-4o:</strong> ${htmlContent}<span class="timestamp"> (${responseTimestamp})</span>`;
                         if(data.usage) {
                             answerDiv.innerHTML += `<span class="timestamp"> [Tokens: ${data.usage.total_tokens}]</span>`;

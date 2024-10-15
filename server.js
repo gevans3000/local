@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai'); // Import OpenAI directly
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
@@ -22,8 +23,12 @@ app.post('/ask', async (req, res) => {
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // Specify the model
       messages: [{ role: "user", content: req.body.question }], // Use the question from the request body
+      temperature: 0.7, // Optional: Set temperature for response creativity
     });
-    res.json({ answer: response.choices[0].message.content }); // Send back the response from OpenAI
+    res.json({ 
+      answer: response.choices[0].message.content,
+      usage: response.usage // Include usage data
+    }); // Send back the response and usage from OpenAI
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: error.message }); // Send a server error response
