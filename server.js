@@ -7,6 +7,9 @@ const fs = require('fs');
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
 
+// Serve static files (JavaScript, CSS, etc.) from the project directory
+app.use(express.static(__dirname));
+
 // Initialize OpenAI client with the API key directly
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
@@ -21,7 +24,7 @@ app.get('/', (req, res) => {
 app.post('/ask', async (req, res) => {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // Specify the model
+      model: "gpt-4o-mini", // Specify the model
       messages: [{ role: "user", content: req.body.question }], // Use the question from the request body
       temperature: 0.7, // Optional: Set temperature for response creativity
     });
