@@ -72,7 +72,6 @@
     <!-- Include Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
-        let controller = null;
 
         function saveChatToLocalStorage(user, text, timestamp, tokens = null) {
             const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
