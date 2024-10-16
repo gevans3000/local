@@ -20,7 +20,7 @@ function displayMessage(user, content, timestamp, tokens = null, isMarkdown = fa
     }
 
     chatBox.insertBefore(messageDiv, document.getElementById('inputArea').nextSibling);
-    chatBox.scrollTop = chatBox.scrollHeight;
+   
 }
 
 function showSpinner() {
