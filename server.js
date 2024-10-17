@@ -1,5 +1,6 @@
 // server.js
 
+const favicon = require('serve-favicon');
 require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai'); // Import OpenAI directly
@@ -9,6 +10,7 @@ const db = require('./database'); // Import the database module
 
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
+app.use(favicon(path.join(__dirname, 'favicon.ico')));
 
 // Serve static files (JavaScript, CSS, etc.) from the project directory
 app.use(express.static(__dirname));
