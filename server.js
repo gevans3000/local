@@ -18,6 +18,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
 });
 
+const MODEL = "gpt-4o"; // Define the model name
+
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -35,9 +37,9 @@ app.post('/ask', async (req, res) => {
   try {
     // Save user question to the database
     db.run(`
-      INSERT INTO conversations (user, message, timestamp)
-      VALUES (?, ?, ?)
-    `, ['You', question, timestamp], function(err) {
+      INSERT INTO conversations (user, message, timestamp, tokens)
+      VALUES (?, ?, ?, ?)
+    `, ['You', question, timestamp, null], function(err) {
       if (err) {
         console.error('Error inserting user message:', err.message);
       } else {
@@ -47,18 +49,19 @@ app.post('/ask', async (req, res) => {
 
     // Get response from OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: MODEL,
       messages: [{ role: "user", content: question }],
       temperature: 0.7,
     });
 
     const answer = response.choices[0].message.content;
+    const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
     // Save GPT-4 response to the database
     db.run(`
-      INSERT INTO conversations (user, message, timestamp)
-      VALUES (?, ?, ?)
-    `, ['GPT-4o-mini', answer, timestamp], function(err) {
+      INSERT INTO conversations (user, message, timestamp, tokens)
+      VALUES (?, ?, ?, ?)
+    `, [MODEL, answer, timestamp, tokensUsed], function(err) {
       if (err) {
         console.error('Error inserting GPT-4 message:', err.message);
       } else {
