@@ -18,7 +18,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
 });
 
-const MODEL = "gpt-4o"; // Define the model name
+const MODEL = "gpt-4o-mini"; // Define the model name
 
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
