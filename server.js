@@ -1,8 +1,11 @@
+// server.js
+
 require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai'); // Import OpenAI directly
 const path = require('path');
 const fs = require('fs');
+const db = require('./database'); // Import the database module
 
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
@@ -15,6 +18,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
 });
 
+const MODEL = "gpt-4o"; // Define the model name
+
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -22,19 +27,52 @@ app.get('/', (req, res) => {
 
 // Handle POST requests to '/ask'
 app.post('/ask', async (req, res) => {
+  const { question } = req.body;
+  if (!question) {
+    return res.status(400).json({ error: 'Question is required.' });
+  }
+
+  const timestamp = new Date().toLocaleString();
+
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Specify the model
-      messages: [{ role: "user", content: req.body.question }], // Use the question from the request body
-      temperature: 0.7, // Optional: Set temperature for response creativity
+    // Save user question to the database
+    db.run(`
+      INSERT INTO conversations (user, message, timestamp, tokens)
+      VALUES (?, ?, ?, ?)
+    `, ['You', question, timestamp, null], function(err) {
+      if (err) {
+        console.error('Error inserting user message:', err.message);
+      } else {
+        console.log(`User message saved with ID: ${this.lastID}`);
+      }
     });
-    res.json({ 
-      answer: response.choices[0].message.content,
-      usage: response.usage // Include usage data
-    }); // Send back the response and usage from OpenAI
+
+    // Get response from OpenAI
+    const response = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: question }],
+      temperature: 0.7,
+    });
+
+    const answer = response.choices[0].message.content;
+    const tokensUsed = response.usage ? response.usage.total_tokens : null;
+
+    // Save GPT-4 response to the database
+    db.run(`
+      INSERT INTO conversations (user, message, timestamp, tokens)
+      VALUES (?, ?, ?, ?)
+    `, [MODEL, answer, timestamp, tokensUsed], function(err) {
+      if (err) {
+        console.error('Error inserting GPT-4 message:', err.message);
+      } else {
+        console.log(`GPT-4 message saved with ID: ${this.lastID}`);
+      }
+    });
+
+    res.json({ answer, usage: response.usage });
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: error.message }); // Send a server error response
+    res.status(500).json({ error: error.message });
   }
 });
 

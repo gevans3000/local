@@ -2,10 +2,6 @@
 
 let controller = null;
 
-window.onload = () => {
-    loadChatFromLocalStorage();
-};
-
 async function askQuestion() {
     const questionInput = document.getElementById('question');
     const question = questionInput.value.trim();
@@ -17,7 +13,6 @@ async function askQuestion() {
 
     const timestamp = new Date().toLocaleTimeString();
     displayMessage('You', question, timestamp);
-    saveChatToLocalStorage('You', question, timestamp);
 
     showSpinner();
     showStopButton();
@@ -30,7 +25,6 @@ async function askQuestion() {
 
         if (data.answer) {
             displayMessage('GPT-4o', data.answer, responseTimestamp, data.usage ? data.usage.total_tokens : null, true);
-            saveChatToLocalStorage('GPT-4o', data.answer, responseTimestamp, data.usage ? data.usage.total_tokens : null);
         } else if (data.error) {
             displayMessage('System', `Failed to get an answer: ${data.error}`, responseTimestamp);
         }
