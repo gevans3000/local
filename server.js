@@ -7,6 +7,7 @@ const OpenAI = require('openai'); // Import OpenAI directly
 const path = require('path');
 const fs = require('fs');
 const db = require('./database'); // Import the database module
+const { encode } = require('gpt-3-encoder'); // Import the encoder
 
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
@@ -37,11 +38,14 @@ app.post('/ask', async (req, res) => {
   const timestamp = new Date().toLocaleString();
 
   try {
-    // Save user question to the database
+    // Calculate tokens used for the user question
+    const tokensUsedUser = encode(question).length;
+
+    // Save user question to the database with tokens
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, ['You', question, timestamp, null], function(err) {
+    `, ['You', question, timestamp, tokensUsedUser], function(err) {
       if (err) {
         console.error('Error inserting user message:', err.message);
       } else {
@@ -59,7 +63,7 @@ app.post('/ask', async (req, res) => {
     const answer = response.choices[0].message.content;
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
-    // Save GPT-4 response to the database
+    // Save GPT-4 response to the database with tokens
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
