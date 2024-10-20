@@ -21,7 +21,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
 });
 
-const MODEL = "gpt-4o-mini"; // Define the model name
+const DEFAULT_MODEL = "gpt-4o-mini"; // Define the default model name
 
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
@@ -30,11 +30,12 @@ app.get('/', (req, res) => {
 
 // Handle POST requests to '/ask'
 app.post('/ask', async (req, res) => {
-  const { question } = req.body;
+  const { question, model } = req.body;
   if (!question) {
     return res.status(400).json({ error: 'Question is required.' });
   }
 
+  const selectedModel = model || DEFAULT_MODEL;
   const timestamp = new Date().toLocaleString();
 
   try {
@@ -55,7 +56,7 @@ app.post('/ask', async (req, res) => {
 
     // Get response from OpenAI
     const response = await openai.chat.completions.create({
-      model: MODEL,
+      model: selectedModel,
       messages: [{ role: "user", content: question }],
       temperature: 0.7,
     });
@@ -67,7 +68,7 @@ app.post('/ask', async (req, res) => {
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, [MODEL, answer, timestamp, tokensUsed], function(err) {
+    `, [selectedModel, answer, timestamp, tokensUsed], function(err) {
       if (err) {
         console.error('Error inserting GPT-4 message:', err.message);
       } else {

@@ -1,7 +1,7 @@
 // ui.js
 
-function displayMessage(user, content, timestamp, tokens = null, isMarkdown = false) {
-    const chatBox = document.getElementById('chatBox');
+function displayMessage(chatBoxNumber, user, content, timestamp, tokens = null, isMarkdown = false) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
 
@@ -19,22 +19,21 @@ function displayMessage(user, content, timestamp, tokens = null, isMarkdown = fa
         messageDiv.innerHTML += `<span class="timestamp"> [Tokens: ${tokens}]</span>`;
     }
 
-    chatBox.insertBefore(messageDiv, document.getElementById('inputArea').nextSibling);
-   
+    chatBox.insertBefore(messageDiv, document.getElementById(`inputArea${chatBoxNumber}`).nextSibling);
 }
 
-function showSpinner() {
-    document.getElementById('loadingSpinner').style.display = 'block';
+function showSpinner(chatBoxNumber) {
+    document.getElementById(`loadingSpinner${chatBoxNumber}`).style.display = 'block';
 }
 
-function hideSpinner() {
-    document.getElementById('loadingSpinner').style.display = 'none';
+function hideSpinner(chatBoxNumber) {
+    document.getElementById(`loadingSpinner${chatBoxNumber}`).style.display = 'none';
 }
 
-function showStopButton() {
-    document.getElementById('stopButton').style.display = 'inline-block';
+function showStopButton(chatBoxNumber) {
+    document.getElementById(`stopButton${chatBoxNumber}`).style.display = 'inline-block';
 }
 
-function hideStopButton() {
-    document.getElementById('stopButton').style.display = 'none';
+function hideStopButton(chatBoxNumber) {
+    document.getElementById(`stopButton${chatBoxNumber}`).style.display = 'none';
 }
