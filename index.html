@@ -10,11 +10,17 @@
             background-color: #f9f9f9;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             height: 100vh;
             margin: 0;
+            padding-top: 20px;
         }
         .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .chat-row {
             display: flex;
             gap: 20px;
         }
@@ -82,22 +88,33 @@
 </head>
 <body>
     <div class="chat-container">
-        <div class="chat-box" id="chatBox1">
-            <h1>Chat with OpenAI GPT-4o</h1>
-            <div id="inputArea1">
-                <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1)">
-                <button onclick="askQuestion(1)">Ask</button>
-                <button id="stopButton1" onclick="stopRequest(1)" style="display: none;">Stop</button>
-                <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
+        <div class="chat-row">
+            <div class="chat-box" id="chatBox1">
+                <h1>Chat with OpenAI GPT-4o-mini</h1>
+                <div id="inputArea1">
+                    <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1)">
+                    <button onclick="askQuestion(1)">Ask</button>
+                    <button id="stopButton1" onclick="stopRequest(1)" style="display: none;">Stop</button>
+                    <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
+                </div>
+            </div>
+            <div class="chat-box" id="chatBox2">
+                <h1>Chat with OpenAI GPT-4o-mini-2024-07-18</h1>
+                <div id="inputArea2">
+                    <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2)">
+                    <button onclick="askQuestion(2)">Ask</button>
+                    <button id="stopButton2" onclick="stopRequest(2)" style="display: none;">Stop</button>
+                    <div id="loadingSpinner2" class="spinner" style="display: none;"></div>
+                </div>
             </div>
         </div>
-        <div class="chat-box" id="chatBox2">
-            <h1>Chat with OpenAI GPT-4o-2024-07-18</h1>
-            <div id="inputArea2">
-                <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2)">
-                <button onclick="askQuestion(2)">Ask</button>
-                <button id="stopButton2" onclick="stopRequest(2)" style="display: none;">Stop</button>
-                <div id="loadingSpinner2" class="spinner" style="display: none;"></div>
+        <div class="chat-box" id="chatBox3">
+            <h1>Chat with OpenAI GPT-4o</h1>
+            <div id="inputArea3">
+                <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3)">
+                <button onclick="askQuestion(3)">Ask</button>
+                <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
+                <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
             </div>
         </div>
     </div>
