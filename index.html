@@ -108,13 +108,24 @@
                 </div>
             </div>
         </div>
-        <div class="chat-box" id="chatBox3">
-            <h1>Chat with OpenAI GPT-4o</h1>
-            <div id="inputArea3">
-                <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3)">
-                <button onclick="askQuestion(3)">Ask</button>
-                <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
-                <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
+        <div class="chat-row">
+            <div class="chat-box" id="chatBox3">
+                <h1>Chat with OpenAI NVIDIA LLM</h1>
+                <div id="inputArea3">
+                    <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3)">
+                    <button onclick="askQuestion(3)">Ask</button>
+                    <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
+                    <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
+                </div>
+            </div>
+            <div class="chat-box" id="chatBox4">
+                <h1>Chat with OpenAI NVIDIA LLM</h1>
+                <div id="inputArea4">
+                    <input type="text" id="question4" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(4)">
+                    <button onclick="askQuestion(4)">Ask</button>
+                    <button id="stopButton4" onclick="stopRequest(4)" style="display: none;">Stop</button>
+                    <div id="loadingSpinner4" class="spinner" style="display: none;"></div>
+                </div>
             </div>
         </div>
     </div>

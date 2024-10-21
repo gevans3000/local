@@ -3,13 +3,14 @@
 let controller1 = null;
 let controller2 = null;
 let controller3 = null;
+let controller4 = null;
 
 async function askQuestion(chatBoxNumber) {
     const questionInput = document.getElementById(`question${chatBoxNumber}`);
     const question = questionInput.value.trim();
     const model = chatBoxNumber === 1 ? "gpt-4o-mini" :
                   chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" :
-                                          "nvidia/llama-3.1-nemotron-70b-instruct";
+                  "nvidia/llama-3.1-nemotron-70b-instruct"; // Same model for chatBox3 and chatBox4
 
     if (question) {
         const timestamp = new Date().toLocaleTimeString();
@@ -24,12 +25,15 @@ async function askQuestion(chatBoxNumber) {
             controller1 = new AbortController();
         } else if (chatBoxNumber === 2) {
             controller2 = new AbortController();
-        } else {
+        } else if (chatBoxNumber === 3) {
             controller3 = new AbortController();
+        } else if (chatBoxNumber === 4) {
+            controller4 = new AbortController();
         }
         const signal = chatBoxNumber === 1 ? controller1.signal :
                        chatBoxNumber === 2 ? controller2.signal :
-                                              controller3.signal;
+                       chatBoxNumber === 3 ? controller3.signal :
+                                              controller4.signal;
 
         try {
             const data = await sendQuestion(question, model);
@@ -55,8 +59,10 @@ async function askQuestion(chatBoxNumber) {
                 controller1 = null;
             } else if (chatBoxNumber === 2) {
                 controller2 = null;
-            } else {
+            } else if (chatBoxNumber === 3) {
                 controller3 = null;
+            } else if (chatBoxNumber === 4) {
+                controller4 = null;
             }
         }
 
@@ -74,5 +80,7 @@ function stopRequest(chatBoxNumber) {
         controller2.abort();
     } else if (chatBoxNumber === 3 && controller3) {
         controller3.abort();
+    } else if (chatBoxNumber === 4 && controller4) {
+        controller4.abort();
     }
 }

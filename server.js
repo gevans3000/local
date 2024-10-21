@@ -22,12 +22,12 @@ const openaiDefault = new OpenAI({
 });
 
 const openaiNVIDIA = new OpenAI({
-  apiKey: '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', // NVIDIA API key
+  apiKey: process.env.NVIDIA_API_KEY, // NVIDIA API key from .env
   baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA API base URL
 });
 
-const MODEL_DEFAULT = "gpt-4o-mini"; // Define the default model name
-const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct"; // Define the NVIDIA model name
+const MODEL_DEFAULT = "gpt-4o-mini";
+const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct";
 
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
@@ -46,15 +46,15 @@ app.post('/ask', async (req, res) => {
 
   try {
     let openaiClient;
-    let userIdentifier;
+    let responseUser;
 
     // Select the appropriate OpenAI client based on the model
     if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
       openaiClient = openaiDefault;
-      userIdentifier = 'You';
+      responseUser = MODEL_DEFAULT;
     } else if (selectedModel === MODEL_NVIDIA) {
       openaiClient = openaiNVIDIA;
-      userIdentifier = 'You';
+      responseUser = MODEL_NVIDIA;
     } else {
       return res.status(400).json({ error: 'Invalid model specified.' });
     }
@@ -66,7 +66,7 @@ app.post('/ask', async (req, res) => {
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, [userIdentifier, question, timestamp, tokensUsedUser], function(err) {
+    `, ['You', question, timestamp, tokensUsedUser], function(err) {
       if (err) {
         console.error('Error inserting user message:', err.message);
       } else {
@@ -85,18 +85,18 @@ app.post('/ask', async (req, res) => {
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
     // Determine user identifier based on the model
-    let responseUser;
+    let responseUserIdentifier;
     if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
-      responseUser = MODEL_DEFAULT;
+      responseUserIdentifier = MODEL_DEFAULT;
     } else if (selectedModel === MODEL_NVIDIA) {
-      responseUser = MODEL_NVIDIA;
+      responseUserIdentifier = MODEL_NVIDIA;
     }
 
     // Save GPT response to the database with tokens
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, [responseUser, answer, timestamp, tokensUsed], function(err) {
+    `, [responseUserIdentifier, answer, timestamp, tokensUsed], function(err) {
       if (err) {
         console.error('Error inserting GPT message:', err.message);
       } else {
