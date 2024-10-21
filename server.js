@@ -16,12 +16,18 @@ app.use(favicon(path.join(__dirname, 'favicon.ico')));
 // Serve static files (JavaScript, CSS, etc.) from the project directory
 app.use(express.static(__dirname));
 
-// Initialize OpenAI client with the API key directly
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,  // Your API key from .env
+// Initialize OpenAI clients with different configurations
+const openaiDefault = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,  // Your primary OpenAI API key from .env
 });
 
-const DEFAULT_MODEL = "gpt-4o-mini"; // Define the default model name
+const openaiNVIDIA = new OpenAI({
+  apiKey: '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', // NVIDIA API key
+  baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA API base URL
+});
+
+const MODEL_DEFAULT = "gpt-4o-mini"; // Define the default model name
+const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct"; // Define the NVIDIA model name
 
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
@@ -35,10 +41,24 @@ app.post('/ask', async (req, res) => {
     return res.status(400).json({ error: 'Question is required.' });
   }
 
-  const selectedModel = model || DEFAULT_MODEL;
+  const selectedModel = model || MODEL_DEFAULT;
   const timestamp = new Date().toLocaleString();
 
   try {
+    let openaiClient;
+    let userIdentifier;
+
+    // Select the appropriate OpenAI client based on the model
+    if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
+      openaiClient = openaiDefault;
+      userIdentifier = 'You';
+    } else if (selectedModel === MODEL_NVIDIA) {
+      openaiClient = openaiNVIDIA;
+      userIdentifier = 'You';
+    } else {
+      return res.status(400).json({ error: 'Invalid model specified.' });
+    }
+
     // Calculate tokens used for the user question
     const tokensUsedUser = encode(question).length;
 
@@ -46,7 +66,7 @@ app.post('/ask', async (req, res) => {
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, ['You', question, timestamp, tokensUsedUser], function(err) {
+    `, [userIdentifier, question, timestamp, tokensUsedUser], function(err) {
       if (err) {
         console.error('Error inserting user message:', err.message);
       } else {
@@ -55,7 +75,7 @@ app.post('/ask', async (req, res) => {
     });
 
     // Get response from OpenAI
-    const response = await openai.chat.completions.create({
+    const response = await openaiClient.chat.completions.create({
       model: selectedModel,
       messages: [{ role: "user", content: question }],
       temperature: 0.7,
@@ -64,15 +84,23 @@ app.post('/ask', async (req, res) => {
     const answer = response.choices[0].message.content;
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
-    // Save GPT-4 response to the database with tokens
+    // Determine user identifier based on the model
+    let responseUser;
+    if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
+      responseUser = MODEL_DEFAULT;
+    } else if (selectedModel === MODEL_NVIDIA) {
+      responseUser = MODEL_NVIDIA;
+    }
+
+    // Save GPT response to the database with tokens
     db.run(`
       INSERT INTO conversations (user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?)
-    `, [selectedModel, answer, timestamp, tokensUsed], function(err) {
+    `, [responseUser, answer, timestamp, tokensUsed], function(err) {
       if (err) {
-        console.error('Error inserting GPT-4 message:', err.message);
+        console.error('Error inserting GPT message:', err.message);
       } else {
-        console.log(`GPT-4 message saved with ID: ${this.lastID}`);
+        console.log(`GPT message saved with ID: ${this.lastID}`);
       }
     });
 

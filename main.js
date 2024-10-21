@@ -7,25 +7,17 @@ let controller3 = null;
 async function askQuestion(chatBoxNumber) {
     const questionInput = document.getElementById(`question${chatBoxNumber}`);
     const question = questionInput.value.trim();
-    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
-    const inputArea = document.getElementById(`inputArea${chatBoxNumber}`);
-    const loadingSpinner = document.getElementById(`loadingSpinner${chatBoxNumber}`);
-    const stopButton = document.getElementById(`stopButton${chatBoxNumber}`);
     const model = chatBoxNumber === 1 ? "gpt-4o-mini" :
                   chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" :
-                                          "gpt-4o";
+                                          "nvidia/llama-3.1-nemotron-70b-instruct";
 
     if (question) {
         const timestamp = new Date().toLocaleTimeString();
-        const questionDiv = document.createElement('div');
-        questionDiv.className = 'message';
-        questionDiv.innerHTML = `<strong>You:</strong> ${question}<span class="timestamp"> (${timestamp})</span>`;
-        chatBox.insertBefore(questionDiv, inputArea.nextSibling);
-        // Save to database will be handled by server
-
-        // Show the spinner and stop button
-        loadingSpinner.style.display = 'block';
-        stopButton.style.display = 'inline-block';
+        displayMessage(chatBoxNumber, 'You', question, timestamp);
+        
+        // Show spinner and stop button
+        showSpinner(chatBoxNumber);
+        showStopButton(chatBoxNumber);
 
         // Initialize AbortController
         if (chatBoxNumber === 1) {
@@ -40,66 +32,39 @@ async function askQuestion(chatBoxNumber) {
                                               controller3.signal;
 
         try {
-            const response = await fetch('/ask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ question: question, model: model }),
-                signal: signal
-            });
-            const data = await response.json();
+            const data = await sendQuestion(question, model);
             const responseTimestamp = new Date().toLocaleTimeString();
-            if (response.ok) {
-                const answerDiv = document.createElement('div');
-                // Parse Markdown for GPT-4o responses
-                const htmlContent = marked.parse(data.answer);
-                answerDiv.className = 'message';
-                answerDiv.innerHTML = `<strong>${model}:</strong> ${htmlContent}<span class="timestamp"> (${responseTimestamp})</span>`;
-                if(data.usage) {
-                    answerDiv.innerHTML += `<span class="timestamp"> [Tokens: ${data.usage.total_tokens}]</span>`;
-                }
-                chatBox.insertBefore(answerDiv, inputArea.nextSibling);
-                // Save to database will be handled by server
-            } else {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'message';
-                errorDiv.textContent = `Failed to get an answer: ${data.error}`;
-                chatBox.insertBefore(errorDiv, inputArea.nextSibling);
+            if (data.answer) {
+                const tokensUsed = data.usage ? data.usage.total_tokens : null;
+                displayMessage(chatBoxNumber, model, data.answer, responseTimestamp, tokensUsed, true);
+            } else if (data.error) {
+                displayMessage(chatBoxNumber, 'System', `Failed to get an answer: ${data.error}`, responseTimestamp);
             }
         } catch (error) {
             if (error.name === 'AbortError') {
-                const abortDiv = document.createElement('div');
-                abortDiv.className = 'message';
-                abortDiv.textContent = 'Request was stopped.';
-                chatBox.insertBefore(abortDiv, inputArea.nextSibling);
+                displayMessage(chatBoxNumber, 'System', 'Request was stopped.', new Date().toLocaleTimeString());
             } else {
                 console.error('Fetch error:', error);
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'message';
-                errorDiv.textContent = 'Error contacting the server.';
-                chatBox.insertBefore(errorDiv, inputArea.nextSibling);
+                displayMessage(chatBoxNumber, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
+            }
+        } finally {
+            // Hide spinner and stop button
+            hideSpinner(chatBoxNumber);
+            hideStopButton(chatBoxNumber);
+            if (chatBoxNumber === 1) {
+                controller1 = null;
+            } else if (chatBoxNumber === 2) {
+                controller2 = null;
+            } else {
+                controller3 = null;
             }
         }
 
-        // Hide the spinner and stop button
-        loadingSpinner.style.display = 'none';
-        stopButton.style.display = 'none';
-        if (chatBoxNumber === 1) {
-            controller1 = null;
-        } else if (chatBoxNumber === 2) {
-            controller2 = null;
-        } else {
-            controller3 = null;
-        }
+        questionInput.value = '';
+        questionInput.focus();
     } else {
-        const warningDiv = document.createElement('div');
-        warningDiv.className = 'message';
-        warningDiv.textContent = 'Please enter a question.';
-        chatBox.insertBefore(warningDiv, inputArea.nextSibling);
+        displayMessage(chatBoxNumber, 'System', 'Please enter a question.');
     }
-    questionInput.value = ''; // Clear the input after asking
-    questionInput.focus(); // Refocus to the input field
 }
 
 function stopRequest(chatBoxNumber) {
