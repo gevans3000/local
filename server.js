@@ -5,7 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai'); // Import OpenAI directly
 const path = require('path');
-const fs = require('fs');
 const db = require('./database'); // Import the database module
 const { encode } = require('gpt-3-encoder'); // Import the encoder
 
@@ -26,8 +25,14 @@ const openaiNVIDIA = new OpenAI({
   baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA API base URL
 });
 
+const openaiMeta = new OpenAI({
+  apiKey: process.env.META_API_KEY, // Meta API key from .env
+  baseURL: 'https://integrate.api.nvidia.com/v1', // Meta API base URL (replace with actual URL)
+});
+
 const MODEL_DEFAULT = "gpt-4o-mini";
 const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct";
+const MODEL_META = "meta/llama-3.2-3b-instruct";
 
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
@@ -46,15 +51,18 @@ app.post('/ask', async (req, res) => {
 
   try {
     let openaiClient;
-    let responseUser;
+    let responseUserIdentifier;
 
     // Select the appropriate OpenAI client based on the model
     if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
       openaiClient = openaiDefault;
-      responseUser = MODEL_DEFAULT;
+      responseUserIdentifier = MODEL_DEFAULT;
     } else if (selectedModel === MODEL_NVIDIA) {
       openaiClient = openaiNVIDIA;
-      responseUser = MODEL_NVIDIA;
+      responseUserIdentifier = MODEL_NVIDIA;
+    } else if (selectedModel === MODEL_META) {
+      openaiClient = openaiMeta;
+      responseUserIdentifier = MODEL_META;
     } else {
       return res.status(400).json({ error: 'Invalid model specified.' });
     }
@@ -83,14 +91,6 @@ app.post('/ask', async (req, res) => {
 
     const answer = response.choices[0].message.content;
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
-
-    // Determine user identifier based on the model
-    let responseUserIdentifier;
-    if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
-      responseUserIdentifier = MODEL_DEFAULT;
-    } else if (selectedModel === MODEL_NVIDIA) {
-      responseUserIdentifier = MODEL_NVIDIA;
-    }
 
     // Save GPT response to the database with tokens
     db.run(`
