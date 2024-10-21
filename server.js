@@ -17,20 +17,17 @@ app.use(express.static(__dirname));
 
 // Initialize OpenAI clients with different configurations
 const openaiDefault = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,  // Your primary OpenAI API key from .env
+  apiKey: process.env.OPENAI_API_KEY, // Your primary OpenAI API key from .env
 });
 
 const openaiNVIDIA = new OpenAI({
   apiKey: process.env.NVIDIA_API_KEY, // NVIDIA API key from .env
-  baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA API base URL
+  baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA and Meta API base URL
 });
 
-const openaiMeta = new OpenAI({
-  apiKey: process.env.META_API_KEY, // Meta API key from .env
-  baseURL: 'https://integrate.api.nvidia.com/v1', // Meta API base URL (replace with actual URL)
-});
-
+// Define model constants
 const MODEL_DEFAULT = "gpt-4o-mini";
+const MODEL_OPENAI_ALTERNATE = "gpt-4o-mini-2024-07-18";
 const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct";
 const MODEL_META = "meta/llama-3.2-3b-instruct";
 
@@ -53,16 +50,13 @@ app.post('/ask', async (req, res) => {
     let openaiClient;
     let responseUserIdentifier;
 
-    // Select the appropriate OpenAI client based on the model
-    if (selectedModel === MODEL_DEFAULT || selectedModel === "gpt-4o-mini-2024-07-18") {
+    // Select the appropriate OpenAI client based on the model name prefix
+    if (selectedModel.startsWith("gpt-")) {
       openaiClient = openaiDefault;
-      responseUserIdentifier = MODEL_DEFAULT;
-    } else if (selectedModel === MODEL_NVIDIA) {
+      responseUserIdentifier = selectedModel;
+    } else if (selectedModel.startsWith("nvidia/") || selectedModel.startsWith("meta/")) {
       openaiClient = openaiNVIDIA;
-      responseUserIdentifier = MODEL_NVIDIA;
-    } else if (selectedModel === MODEL_META) {
-      openaiClient = openaiMeta;
-      responseUserIdentifier = MODEL_META;
+      responseUserIdentifier = selectedModel;
     } else {
       return res.status(400).json({ error: 'Invalid model specified.' });
     }

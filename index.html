@@ -35,7 +35,7 @@
             overflow-y: auto;
             max-height: 400px;
         }
-        input[type="text"], button {
+        input[type="text"], button, textarea {
             width: calc(100% - 22px);
             padding: 10px;
             margin-bottom: 10px;
@@ -105,6 +105,8 @@
                     <button onclick="askQuestion(2)">Ask</button>
                     <button id="stopButton2" onclick="stopRequest(2)" style="display: none;">Stop</button>
                     <div id="loadingSpinner2" class="spinner" style="display: none;"></div>
+                    <!-- Textarea for custom model input -->
+                    <textarea id="modelInput2" placeholder="Enter custom model name (optional)" rows="2"></textarea>
                 </div>
             </div>
         </div>
@@ -125,6 +127,8 @@
                     <button onclick="askQuestion(4)">Ask</button>
                     <button id="stopButton4" onclick="stopRequest(4)" style="display: none;">Stop</button>
                     <div id="loadingSpinner4" class="spinner" style="display: none;"></div>
+                    <!-- Textarea for custom model input -->
+                    <textarea id="modelInput4" placeholder="Enter custom model name (optional)" rows="2"></textarea>
                 </div>
             </div>
         </div>

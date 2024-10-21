@@ -10,29 +10,20 @@ async function askQuestion(chatBoxNumber) {
     const question = questionInput.value.trim();
     let model;
 
-    // Assign the correct model based on the chatBoxNumber
-    switch(chatBoxNumber) {
-        case 1:
-            model = "gpt-4o-mini";
-            break;
-        case 2:
-            model = "gpt-4o-mini-2024-07-18";
-            break;
-        case 3:
-            model = "nvidia/llama-3.1-nemotron-70b-instruct";
-            break;
-        case 4:
-            model = "meta/llama-3.2-3b-instruct";
-            break;
-        default:
-            console.error('Invalid chatBoxNumber:', chatBoxNumber);
-            return;
+    // Determine the model based on chatBoxNumber and textarea input
+    if (chatBoxNumber === 2 || chatBoxNumber === 4) {
+        const modelInput = document.getElementById(`modelInput${chatBoxNumber}`).value.trim();
+        model = modelInput !== "" ? modelInput : 
+                (chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" : "meta/llama-3.2-3b-instruct");
+    } else {
+        model = chatBoxNumber === 1 ? "gpt-4o-mini" :
+                "nvidia/llama-3.1-nemotron-70b-instruct"; // For chatBox3
     }
 
     if (question) {
         const timestamp = new Date().toLocaleTimeString();
         displayMessage(chatBoxNumber, 'You', question, timestamp);
-        
+
         // Show spinner and stop button
         showSpinner(chatBoxNumber);
         showStopButton(chatBoxNumber);
