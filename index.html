@@ -2,40 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="favicon.ico">
-    <title>Chat with OpenAI GPT-4o</title>
+    <title>Multi-Chatbox Interface</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f9f9f9;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            height: 100vh;
-            margin: 0;
-            padding-top: 20px;
+            background-color: #f2f2f2;
         }
         .chat-container {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            align-items: center;
+            margin-top: 20px;
         }
         .chat-row {
             display: flex;
-            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
         }
         .chat-box {
-            background-color: #fff;
-            border: 1px solid #ccc;
-            border-radius: 8px;
+            background-color: white;
             padding: 20px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             width: 400px;
             text-align: left;
             overflow-y: auto;
-            max-height: 400px;
+            max-height: 500px;
+            margin: 0 10px;
         }
-        input[type="text"], button, textarea {
+        input[type="text"], button, textarea, .checkbox-container {
             width: calc(100% - 22px);
             padding: 10px;
             margin-bottom: 10px;
@@ -79,6 +73,14 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .checkbox-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .checkbox-container label {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
     </style>
     <!-- Include Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -95,7 +97,14 @@
                     <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1)">
                     <button onclick="askQuestion(1)">Ask</button>
                     <button id="stopButton1" onclick="stopRequest(1)" style="display: none;">Stop</button>
+                    <button id="getContextButton1" onclick="getContext(1)">Get Context</button>
                     <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
+                </div>
+                <div class="checkbox-container">
+                    <label><input type="checkbox" id="selectChatBox1" checked disabled> ChatBox 1</label>
+                    <label><input type="checkbox" id="selectChatBox2"> ChatBox 2</label>
+                    <label><input type="checkbox" id="selectChatBox3"> ChatBox 3</label>
+                    <label><input type="checkbox" id="selectChatBox4"> ChatBox 4</label>
                 </div>
             </div>
             <div class="chat-box" id="chatBox2">

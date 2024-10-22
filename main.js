@@ -47,7 +47,15 @@ async function askQuestion(chatBoxNumber) {
         const signal = getControllerSignal(chatBoxNumber);
 
         try {
-            const data = await sendQuestion(question, model);
+            const response = await fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ question: question, model: model, chatBoxNumber: chatBoxNumber }),
+                signal: signal
+            });
+            const data = await response.json();
             const responseTimestamp = new Date().toLocaleTimeString();
             if (data.answer) {
                 const tokensUsed = data.usage ? data.usage.total_tokens : null;
@@ -73,6 +81,51 @@ async function askQuestion(chatBoxNumber) {
         questionInput.focus();
     } else {
         displayMessage(chatBoxNumber, 'System', 'Please enter a question.');
+    }
+}
+
+async function getContext(chatBoxNumber) {
+    try {
+        // Show spinner while fetching context
+        showSpinner(chatBoxNumber);
+
+        // Collect selected chatboxes
+        let selectedChatBoxes = [1]; // ChatBox1 is always selected
+        for (let i = 2; i <=4; i++) {
+            const checkbox = document.getElementById(`selectChatBox${i}`);
+            if (checkbox && checkbox.checked) {
+                selectedChatBoxes.push(i);
+            }
+        }
+
+        const response = await fetch('/get-context', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ chatBoxNumbers: selectedChatBoxes }),
+        });
+        const data = await response.json();
+        if (data.context && Array.isArray(data.context)) {
+            // Clear existing messages in chatBox1
+            const chatBox = document.getElementById(`chatBox1`);
+            const messages = chatBox.querySelectorAll('.message');
+            messages.forEach(message => message.remove());
+
+            data.context.forEach(message => {
+                // Determine if the message is from the AI model by checking if modelName is present
+                const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
+                displayMessage(1, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
+            });
+        } else if (data.error) {
+            displayMessage(1, 'System', `Failed to get context: ${data.error}`, new Date().toLocaleTimeString());
+        }
+    } catch (error) {
+        console.error('Fetch error:', error);
+        displayMessage(1, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
+    } finally {
+        // Hide spinner after fetching context
+        hideSpinner(chatBoxNumber);
     }
 }
 

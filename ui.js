@@ -5,17 +5,24 @@ function displayMessage(chatBoxNumber, user, content, timestamp, tokens = null, 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
 
-    if(isMarkdown) {
-        const htmlContent = marked.parse(content);
-        messageDiv.innerHTML = `<strong>${user}:</strong> ${htmlContent}`;
-    } else {
+    if (user === 'System') {
+        // Style system messages differently
+        messageDiv.style.fontStyle = 'italic';
+        messageDiv.style.color = '#555';
         messageDiv.innerHTML = `<strong>${user}:</strong> ${content}`;
+    } else {
+        if (isMarkdown) {
+            const htmlContent = marked.parse(content);
+            messageDiv.innerHTML = `<strong>${user}:</strong> ${htmlContent}`;
+        } else {
+            messageDiv.innerHTML = `<strong>${user}:</strong> ${content}`;
+        }
     }
 
-    if(timestamp) {
+    if (timestamp) {
         messageDiv.innerHTML += `<span class="timestamp"> (${timestamp})</span>`;
     }
-    if(tokens) {
+    if (tokens) {
         messageDiv.innerHTML += `<span class="timestamp"> [Tokens: ${tokens}]</span>`;
     }
 
