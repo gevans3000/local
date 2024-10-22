@@ -63,7 +63,7 @@ app.get('/', (req, res) => {
 
 // Handle POST requests to '/ask'
 app.post('/ask', async (req, res) => {
-  const { question, model, chatBoxNumber } = req.body;
+  const { question, model, chatBoxNumber, context } = req.body;
   if (!question) {
     return res.status(400).json({ error: 'Question is required.' });
   }
@@ -89,18 +89,37 @@ app.post('/ask', async (req, res) => {
     // Calculate tokens used for the user question
     const tokensUsedUser = encode(question).length;
 
+    // Set user identifier based on chatBoxNumber
+    const userIdentifier = `You${chatBoxNumber}`;
+
     // Save user question to the database with tokens and chatBoxNumber
     await run(`
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
-      VALUES (?, NULL, 'You', ?, ?, ?)
-    `, [chatBoxNumber, question, timestamp, tokensUsedUser]);
+      VALUES (?, NULL, ?, ?, ?, ?)
+    `, [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]);
 
     console.log(`User message saved for chatBoxNumber ${chatBoxNumber}`);
+
+    // Prepare messages array for OpenAI
+    let messages = [];
+
+    if (Array.isArray(context) && context.length > 0) {
+      context.forEach(msg => {
+        if (msg.user.startsWith('You')) {
+          messages.push({ role: 'user', content: msg.message });
+        } else {
+          messages.push({ role: 'assistant', content: msg.message });
+        }
+      });
+    }
+
+    // Add the current user question
+    messages.push({ role: 'user', content: question });
 
     // Get response from OpenAI
     const response = await openaiClient.chat.completions.create({
       model: selectedModel,
-      messages: [{ role: "user", content: question }],
+      messages: messages,
       temperature: 0.7,
     });
 

@@ -5,6 +5,9 @@ let controller2 = null;
 let controller3 = null;
 let controller4 = null;
 
+// Variable to store context for chatBox1
+let currentContext1 = [];
+
 async function askQuestion(chatBoxNumber) {
     const questionInput = document.getElementById(`question${chatBoxNumber}`);
     const question = questionInput.value.trim();
@@ -22,7 +25,8 @@ async function askQuestion(chatBoxNumber) {
 
     if (question) {
         const timestamp = new Date().toLocaleTimeString();
-        displayMessage(chatBoxNumber, 'You', question, timestamp);
+        const userIdentifier = `You${chatBoxNumber}`;
+        displayMessage(chatBoxNumber, userIdentifier, question, timestamp);
 
         // Show spinner and stop button
         showSpinner(chatBoxNumber);
@@ -47,12 +51,18 @@ async function askQuestion(chatBoxNumber) {
         const signal = getControllerSignal(chatBoxNumber);
 
         try {
+            // Prepare context if chatBoxNumber is 1
+            let context = [];
+            if (chatBoxNumber === 1) {
+                context = currentContext1;
+            }
+
             const response = await fetch('/ask', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ question: question, model: model, chatBoxNumber: chatBoxNumber }),
+                body: JSON.stringify({ question: question, model: model, chatBoxNumber: chatBoxNumber, context: context }),
                 signal: signal
             });
             const data = await response.json();
@@ -112,8 +122,11 @@ async function getContext(chatBoxNumber) {
             const messages = chatBox.querySelectorAll('.message');
             messages.forEach(message => message.remove());
 
+            // Update currentContext1
+            currentContext1 = data.context;
+
             data.context.forEach(message => {
-                // Determine if the message is from the AI model by checking if modelName is present
+                // Determine if the message is from the AI model by checking if user starts with model prefixes
                 const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
                 displayMessage(1, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
             });
