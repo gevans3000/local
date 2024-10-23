@@ -95,7 +95,7 @@ app.post('/ask', async (req, res) => {
     // Save user question to the database with tokens and chatBoxNumber
     await run(`
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
-      VALUES (?, NULL, ?, ?, ?, ?)
+      VALUES (?, 'Human', ?, ?, ?, ?)
     `, [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]);
 
     console.log(`User message saved for chatBoxNumber ${chatBoxNumber}`);

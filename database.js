@@ -10,11 +10,18 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
         console.error('Error opening database:', err.message);
     } else {
         console.log('Connected to the SQLite database.');
+        // Set busy timeout to prevent SQLITE_BUSY errors
+        db.run('PRAGMA busy_timeout = 3000;', (err) => {
+            if (err) {
+                console.error('Error setting busy_timeout:', err.message);
+            } else {
+                console.log('Busy timeout set to 3000 ms.');
+            }
+        });
+        // Initialize the database after setting busy_timeout
+        initializeDatabase();
     }
 });
-
-// Set busy timeout to prevent SQLITE_BUSY errors
-db.configure('busyTimeout', 3000);
 
 // Function to check if a column exists in a table
 function columnExists(tableName, columnName) {
@@ -43,7 +50,7 @@ async function initializeDatabase() {
                     CREATE TABLE conversations (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         chatBoxNumber INTEGER,
-                        modelName TEXT,
+                        modelName TEXT NOT NULL DEFAULT 'Human',
                         user TEXT,
                         message TEXT,
                         timestamp TEXT,
@@ -54,25 +61,27 @@ async function initializeDatabase() {
                         console.error('Error creating conversations table:', err.message);
                     } else {
                         console.log('Conversations table created with chatBoxNumber and modelName columns.');
-                        // Optionally, insert initial data or handle as needed
+                        addIndexes();
                     }
                 });
             } else {
                 // Table exists, check for modelName column
                 const hasModelName = await columnExists('conversations', 'modelName');
                 if (!hasModelName) {
-                    // Add modelName column
-                    db.run(`ALTER TABLE conversations ADD COLUMN modelName TEXT`, (err) => {
+                    // Add modelName column with NOT NULL and default 'Human'
+                    db.run(`ALTER TABLE conversations ADD COLUMN modelName TEXT NOT NULL DEFAULT 'Human'`, async (err) => {
                         if (err) {
                             console.error('Error adding modelName column:', err.message);
                         } else {
-                            console.log('modelName column added to conversations table.');
-                            migrateData();
+                            console.log('modelName column added to conversations table with default "Human".');
+                            await migrateData();
+                            addIndexes();
                         }
                     });
                 } else {
                     console.log('Conversations table already has modelName column.');
-                    migrateData();
+                    await migrateData();
+                    addIndexes();
                 }
             }
         });
@@ -82,69 +91,46 @@ async function initializeDatabase() {
 }
 
 // Function to migrate existing data to correct schema
-function migrateData() {
-    // Update AI messages: Move current chatBoxNumber to modelName and set chatBoxNumber as INTEGER
-    db.all(`SELECT id, chatBoxNumber, user FROM conversations`, [], (err, rows) => {
-        if (err) {
-            console.error('Error fetching conversations for migration:', err.message);
-            return;
-        }
-
-        rows.forEach(row => {
-            if (row.user !== 'You') {
-                // AI message: chatBoxNumber currently holds modelName
-                let newChatBoxNumber = null;
-                let modelName = row.chatBoxNumber;
-
-                // Map modelName to chatBoxNumber
-                switch(modelName) {
-                    case 'gpt-4o-mini':
-                        newChatBoxNumber = 2;
-                        break;
-                    case 'nvidia/llama-3.1-nemotron-70b-instruct':
-                        newChatBoxNumber = 3;
-                        break;
-                    case 'meta/llama-3.2-3b-instruct':
-                        newChatBoxNumber = 4;
-                        break;
-                    default:
-                        console.warn(`Unrecognized modelName "${modelName}" for conversation ID ${row.id}. Setting chatBoxNumber to NULL.`);
-                        newChatBoxNumber = null;
+async function migrateData() {
+    return new Promise((resolve, reject) => {
+        db.serialize(() => {
+            // Update modelName to 'Human' for user messages where modelName is NULL
+            db.run(`
+                UPDATE conversations
+                SET modelName = 'Human'
+                WHERE user LIKE 'You%' AND (modelName IS NULL OR modelName = '')
+            `, function(err) {
+                if (err) {
+                    console.error('Error updating modelName for user messages:', err.message);
+                    return reject(err);
+                } else {
+                    console.log(`modelName updated to 'Human' for ${this.changes} user messages.`);
+                    resolve();
                 }
-
-                // Update the row with newChatBoxNumber and modelName
-                db.run(`
-                    UPDATE conversations
-                    SET chatBoxNumber = ?, modelName = ?
-                    WHERE id = ?
-                `, [newChatBoxNumber, modelName, row.id], (err) => {
-                    if (err) {
-                        console.error(`Error updating conversation ID ${row.id}:`, err.message);
-                    } else {
-                        console.log(`Conversation ID ${row.id} updated with chatBoxNumber=${newChatBoxNumber} and modelName='${modelName}'.`);
-                    }
-                });
-            } else {
-                // User message: Assign to chatBoxNumber 1 if not already set
-                if (row.chatBoxNumber !== 1) {
-                    db.run(`
-                        UPDATE conversations
-                        SET chatBoxNumber = 1
-                        WHERE id = ?
-                    `, [row.id], (err) => {
-                        if (err) {
-                            console.error(`Error updating user conversation ID ${row.id}:`, err.message);
-                        } else {
-                            console.log(`User Conversation ID ${row.id} assigned to chatBoxNumber=1.`);
-                        }
-                    });
-                }
-            }
+            });
         });
     });
 }
 
-// Run the initialization
-initializeDatabase();
+// Function to add indexes for performance optimization
+function addIndexes() {
+    // Add index on chatBoxNumber
+    db.run(`CREATE INDEX IF NOT EXISTS idx_chatBoxNumber ON conversations(chatBoxNumber)`, (err) => {
+        if (err) {
+            console.error('Error creating index on chatBoxNumber:', err.message);
+        } else {
+            console.log('Index on chatBoxNumber created or already exists.');
+        }
+    });
+
+    // Add index on modelName
+    db.run(`CREATE INDEX IF NOT EXISTS idx_modelName ON conversations(modelName)`, (err) => {
+        if (err) {
+            console.error('Error creating index on modelName:', err.message);
+        } else {
+            console.log('Index on modelName created or already exists.');
+        }
+    });
+}
 
 module.exports = db;
