@@ -137,7 +137,7 @@ app.post('/ask', async (req, res) => {
     res.json({ answer, usage: response.usage });
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
@@ -166,6 +166,25 @@ app.post('/get-context', async (req, res) => {
   }
 });
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error({
+        message: err.message,
+        stack: err.stack,
+        status: err.status || 500,
+        url: req.originalUrl,
+        method: req.method,
+        ip: req.ip
+    });
+
+    const isOperational = err.isOperational || false;
+
+    res.status(err.status || 500).json({
+        error: isOperational ? err.message : 'An unexpected error occurred. Please try again later.'
+    });
+});
+
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
