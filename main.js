@@ -8,6 +8,31 @@ let controller4 = null;
 // Variable to store context for chatBox1
 let currentContext1 = [];
 
+// Function to handle "Select All" checkbox behavior
+document.addEventListener('DOMContentLoaded', () => {
+    const selectAllCheckbox = document.getElementById('selectAllChatBoxes');
+    const chatBoxCheckboxes = [
+        document.getElementById('selectChatBox2'),
+        document.getElementById('selectChatBox3'),
+        document.getElementById('selectChatBox4')
+    ];
+
+    // When "Select All" is clicked
+    selectAllCheckbox.addEventListener('change', () => {
+        chatBoxCheckboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+    });
+
+    // When any individual checkbox is clicked
+    chatBoxCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        });
+    });
+});
+
 async function askQuestion(chatBoxNumber) {
     const questionInput = document.getElementById(`question${chatBoxNumber}`);
     const question = questionInput.value.trim();
