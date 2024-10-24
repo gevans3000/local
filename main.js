@@ -17,31 +17,111 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('selectChatBox4')
     ];
 
-    // When "Select All" is clicked
-    selectAllCheckbox.addEventListener('change', () => {
-        chatBoxCheckboxes.forEach(checkbox => {
-            checkbox.checked = selectAllCheckbox.checked;
+    if (selectAllCheckbox && chatBoxCheckboxes.every(cb => cb !== null)) {
+        // When "Select All" is clicked
+        selectAllCheckbox.addEventListener('change', () => {
+            chatBoxCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
         });
-    });
 
-    // When any individual checkbox is clicked
-    chatBoxCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', () => {
-            const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
-            selectAllCheckbox.checked = allChecked;
+        // When any individual checkbox is clicked
+        chatBoxCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+            });
         });
-    });
+    } else {
+        console.error('Select All checkbox or individual chatBox checkboxes not found.');
+    }
 });
 
-async function askQuestion(chatBoxNumber) {
+// Function to display messages in the chat box
+function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, isMarkdown = false) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+    if (!chatBox) {
+        console.error(`ChatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', user.startsWith('You') ? 'user-message' : 'assistant-message');
+
+    const messageContent = document.createElement('p');
+    messageContent.textContent = message;
+    if (isMarkdown) {
+        // If message is from AI model, apply markdown parsing if necessary
+        // This assumes a markdown parser is available
+        // For example, using marked.js or similar
+        // Here we keep it simple
+        messageContent.innerHTML = message;
+    }
+    messageElement.appendChild(messageContent);
+
+    const messageInfo = document.createElement('span');
+    messageInfo.classList.add('message-info');
+    messageInfo.textContent = `${user} | ${timestamp}` + (tokens ? ` | Tokens: ${tokens}` : '');
+    messageElement.appendChild(messageInfo);
+
+    chatBox.appendChild(messageElement);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Function to show spinner
+function showSpinner(chatBoxNumber) {
+    const spinner = document.getElementById(`spinner${chatBoxNumber}`);
+    if (spinner) {
+        spinner.style.display = 'inline-block';
+    }
+}
+
+// Function to hide spinner
+function hideSpinner(chatBoxNumber) {
+    const spinner = document.getElementById(`spinner${chatBoxNumber}`);
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+}
+
+// Function to show stop button
+function showStopButton(chatBoxNumber) {
+    const stopButton = document.getElementById(`stopButton${chatBoxNumber}`);
+    if (stopButton) {
+        stopButton.style.display = 'inline-block';
+    }
+}
+
+// Function to hide stop button
+function hideStopButton(chatBoxNumber) {
+    const stopButton = document.getElementById(`stopButton${chatBoxNumber}`);
+    if (stopButton) {
+        stopButton.style.display = 'none';
+    }
+}
+
+// Function to handle form submission
+async function askQuestion(chatBoxNumber, event = null) {
+    if (event) {
+        if (event.type === 'keypress' && event.key !== 'Enter') {
+            return;
+        }
+        event.preventDefault();
+    }
+
     const questionInput = document.getElementById(`question${chatBoxNumber}`);
+    if (!questionInput) {
+        console.error(`Input field for chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
     const question = questionInput.value.trim();
     let model;
 
     // Determine the model based on chatBoxNumber and textarea input
     if (chatBoxNumber === 2 || chatBoxNumber === 4) {
-        const modelInput = document.getElementById(`modelInput${chatBoxNumber}`).value.trim();
-        model = modelInput !== "" ? modelInput : 
+        const modelInput = document.getElementById(`modelInput${chatBoxNumber}`);
+        model = (modelInput && modelInput.value.trim() !== "") ? modelInput.value.trim() : 
                 (chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" : "meta/llama-3.2-3b-instruct");
     } else {
         model = chatBoxNumber === 1 ? "gpt-4o-mini" :
@@ -119,6 +199,7 @@ async function askQuestion(chatBoxNumber) {
     }
 }
 
+// Function to handle getting context
 async function getContext(chatBoxNumber) {
     try {
         // Show spinner while fetching context
@@ -144,8 +225,12 @@ async function getContext(chatBoxNumber) {
         if (data.context && Array.isArray(data.context)) {
             // Clear existing messages in chatBox1
             const chatBox = document.getElementById(`chatBox1`);
-            const messages = chatBox.querySelectorAll('.message');
-            messages.forEach(message => message.remove());
+            if (chatBox) {
+                const messages = chatBox.querySelectorAll('.message');
+                messages.forEach(message => message.remove());
+            } else {
+                console.error('chatBox1 not found.');
+            }
 
             // Update currentContext1
             currentContext1 = data.context;
@@ -167,6 +252,7 @@ async function getContext(chatBoxNumber) {
     }
 }
 
+// Function to stop a request
 function stopRequest(chatBoxNumber) {
     switch(chatBoxNumber) {
         case 1:
@@ -186,21 +272,23 @@ function stopRequest(chatBoxNumber) {
     }
 }
 
+// Function to get AbortController signal
 function getControllerSignal(chatBoxNumber) {
     switch(chatBoxNumber) {
         case 1:
-            return controller1.signal;
+            return controller1 ? controller1.signal : null;
         case 2:
-            return controller2.signal;
+            return controller2 ? controller2.signal : null;
         case 3:
-            return controller3.signal;
+            return controller3 ? controller3.signal : null;
         case 4:
-            return controller4.signal;
+            return controller4 ? controller4.signal : null;
         default:
             return null;
     }
 }
 
+// Function to reset AbortController
 function resetController(chatBoxNumber) {
     switch(chatBoxNumber) {
         case 1:
