@@ -8,6 +8,9 @@ let controller4 = null;
 // Variable to store context for chatBox1
 let currentContext1 = [];
 
+// Object to store system prompts for each chatBox
+const systemPrompts = {};
+
 // Function to handle "Select All" checkbox behavior
 document.addEventListener('DOMContentLoaded', () => {
     const selectAllCheckbox = document.getElementById('selectAllChatBoxes');
@@ -34,6 +37,78 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } else {
         console.error('Select All checkbox or individual chatBox checkboxes not found.');
+    }
+
+    // Inject gear icons and setup system prompt functionality
+    for (let i = 1; i <= 4; i++) {
+        const chatBoxHeader = document.querySelector(`#chatBox${i} h1`);
+        if (chatBoxHeader) {
+            // Create gear icon
+            const gearIcon = document.createElement('span');
+            gearIcon.innerHTML = '⚙️';
+            gearIcon.style.cursor = 'pointer';
+            gearIcon.style.marginLeft = '10px';
+            gearIcon.title = 'Set System Prompt';
+            gearIcon.setAttribute('aria-label', 'Set System Prompt');
+
+            // Append gear icon to header
+            chatBoxHeader.appendChild(gearIcon);
+
+            // Create system prompt overlay
+            const overlay = document.createElement('div');
+            overlay.id = `systemPromptOverlay${i}`;
+            overlay.style.display = 'none';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '50%';
+            overlay.style.left = '50%';
+            overlay.style.transform = 'translate(-50%, -50%)';
+            overlay.style.backgroundColor = '#fff';
+            overlay.style.border = '1px solid #ccc';
+            overlay.style.padding = '20px';
+            overlay.style.boxShadow = '0 2px 8px rgba(0,0,0,0.26)';
+            overlay.style.zIndex = '1000';
+
+            // Create close button
+            const closeButton = document.createElement('span');
+            closeButton.innerHTML = '✖️';
+            closeButton.style.float = 'right';
+            closeButton.style.cursor = 'pointer';
+            closeButton.title = 'Close';
+            closeButton.setAttribute('aria-label', 'Close');
+
+            // Create textarea for system prompt
+            const textarea = document.createElement('textarea');
+            textarea.id = `systemPromptTextarea${i}`;
+            textarea.rows = 4;
+            textarea.cols = 50;
+            textarea.placeholder = 'Enter system prompt here...';
+            textarea.style.width = '100%';
+
+            // Append elements to overlay
+            overlay.appendChild(closeButton);
+            const label = document.createElement('label');
+            label.htmlFor = textarea.id;
+            label.textContent = 'System Prompt:';
+            overlay.appendChild(label);
+            overlay.appendChild(document.createElement('br'));
+            overlay.appendChild(textarea);
+
+            // Append overlay to body
+            document.body.appendChild(overlay);
+
+            // Event listener to show overlay on gear icon click
+            gearIcon.addEventListener('click', () => {
+                overlay.style.display = 'block';
+                textarea.focus();
+            });
+
+            // Event listener to close overlay
+            closeButton.addEventListener('click', () => {
+                overlay.style.display = 'none';
+            });
+        } else {
+            console.error(`Header for chatBox${i} not found.`);
+        }
     }
 });
 
@@ -156,10 +231,22 @@ async function askQuestion(chatBoxNumber, event = null) {
         const signal = getControllerSignal(chatBoxNumber);
 
         try {
-            // Prepare context if chatBoxNumber is 1
+            // Retrieve system prompt if set
+            const systemPromptTextarea = document.getElementById(`systemPromptTextarea${chatBoxNumber}`);
+            const systemPrompt = systemPromptTextarea ? systemPromptTextarea.value.trim() : "";
+            if (systemPrompt) {
+                systemPrompts[chatBoxNumber] = systemPrompt;
+            }
+
+            // Prepare context
             let context = [];
-            if (chatBoxNumber === 1) {
+            if (chatBoxNumber === 1 && currentContext1.length > 0) {
                 context = currentContext1;
+            }
+
+            // Include system prompt in context
+            if (systemPrompts[chatBoxNumber]) {
+                context.unshift({ user: `System`, message: systemPrompts[chatBoxNumber] });
             }
 
             const response = await fetch('/ask', {
