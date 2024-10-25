@@ -7,10 +7,26 @@ const OpenAI = require('openai'); // Import OpenAI directly
 const path = require('path');
 const db = require('./database'); // Import the database module
 const { encode } = require('gpt-3-encoder'); // Import the encoder
+const Joi = require('joi'); // Import Joi for input validation
+const winston = require('winston'); // Import Winston for logging
 
 const app = express();
 app.use(express.json()); // Middleware to parse JSON bodies
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
+
+// Setup Winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.json()
+  ),
+  transports: [
+      new winston.transports.Console(),
+      new winston.transports.File({ filename: 'error.log', level: 'error' }),
+      new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 // Serve static files (JavaScript, CSS, etc.) from the project directory
 app.use(express.static(__dirname));
@@ -56,18 +72,36 @@ const all = (sql, params = []) => {
     });
 };
 
+// Define Joi schemas
+const askSchema = Joi.object({
+    question: Joi.string().min(1).required(),
+    model: Joi.string().optional(),
+    chatBoxNumber: Joi.number().integer().min(1).required(),
+    context: Joi.array().items(
+        Joi.object({
+            user: Joi.string().required(),
+            message: Joi.string().required(),
+            timestamp: Joi.string().optional(),
+            tokens: Joi.number().optional()
+        })
+    ).optional()
+});
+
 // Serve the HTML file at the root URL
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Handle POST requests to '/ask'
-app.post('/ask', async (req, res) => {
-  const { question, model, chatBoxNumber, context } = req.body;
-  if (!question) {
-    return res.status(400).json({ error: 'Question is required.' });
+app.post('/ask', async (req, res, next) => {
+  // Validate request body
+  const { error, value } = askSchema.validate(req.body);
+  if (error) {
+    logger.warn(`Validation error: ${error.details[0].message}`);
+    return res.status(400).json({ error: error.details[0].message });
   }
 
+  const { question, model, chatBoxNumber, context } = value;
   const selectedModel = model || MODEL_DEFAULT;
   const timestamp = new Date().toLocaleString();
 
@@ -83,6 +117,7 @@ app.post('/ask', async (req, res) => {
       openaiClient = openaiNVIDIA;
       responseUserIdentifier = selectedModel;
     } else {
+      logger.error(`Invalid model specified: ${selectedModel}`);
       return res.status(400).json({ error: 'Invalid model specified.' });
     }
 
@@ -98,7 +133,7 @@ app.post('/ask', async (req, res) => {
       VALUES (?, 'Human', ?, ?, ?, ?)
     `, [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]);
 
-    console.log(`User message saved for chatBoxNumber ${chatBoxNumber}`);
+    logger.info(`User message saved for chatBoxNumber ${chatBoxNumber}`);
 
     // Prepare messages array for OpenAI
     let messages = [];
@@ -132,19 +167,21 @@ app.post('/ask', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `, [chatBoxNumber, selectedModel, responseUserIdentifier, answer, timestamp, tokensUsed]);
 
-    console.log(`AI message saved for chatBoxNumber ${chatBoxNumber}`);
+    logger.info(`AI message saved for chatBoxNumber ${chatBoxNumber}`);
 
     res.json({ answer, usage: response.usage });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+  } catch (err) {
+    logger.error(`Error in /ask endpoint: ${err.message}`, { stack: err.stack });
+    next(err); // Pass to the global error handler
   }
 });
 
 // Handle POST requests to '/get-context'
-app.post('/get-context', async (req, res) => {
+app.post('/get-context', async (req, res, next) => {
   const { chatBoxNumbers } = req.body;
+  
   if (!Array.isArray(chatBoxNumbers) || chatBoxNumbers.length === 0) {
+    logger.warn('Invalid chatBoxNumbers provided.');
     return res.status(400).json({ error: 'chatBoxNumbers must be a non-empty array.' });
   }
 
@@ -160,15 +197,15 @@ app.post('/get-context', async (req, res) => {
     const rows = await all(sql, chatBoxNumbers);
 
     res.json({ context: rows });
-  } catch (error) {
-    console.error('Error retrieving context:', error.message);
+  } catch (err) {
+    logger.error(`Error retrieving context: ${err.message}`, { stack: err.stack });
     res.status(500).json({ error: 'Failed to retrieve context.' });
   }
 });
 
 // Global Error Handling Middleware
 app.use((err, req, res, next) => {
-    console.error({
+    logger.error('Unhandled error:', {
         message: err.message,
         stack: err.stack,
         status: err.status || 500,
@@ -187,5 +224,5 @@ app.use((err, req, res, next) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  logger.info(`Server running on http://localhost:${PORT}`);
 });
