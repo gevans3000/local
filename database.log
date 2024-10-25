@@ -1,0 +1,5 @@
+2024-10-25T13:37:44.361Z [INFO]: Connected to the SQLite database.
+2024-10-25T13:37:44.369Z [INFO]: PRAGMA foreign_keys set to ON.
+2024-10-25T13:37:44.372Z [INFO]: PRAGMA journal_mode set to WAL.
+2024-10-25T13:37:44.373Z [INFO]: PRAGMA synchronous set to NORMAL.
+2024-10-25T13:37:44.374Z [INFO]: Conversations table is ready.
