@@ -27,3 +27,4 @@
 {"level":"info","message":"User message saved for chatBoxNumber 1","timestamp":"2024-10-25T15:38:21.473Z"}
 {"level":"info","message":"AI message saved for chatBoxNumber 1","timestamp":"2024-10-25T15:38:23.705Z"}
 {"level":"info","message":"Server running on http://localhost:3000","timestamp":"2024-10-25T15:39:14.742Z"}
+{"level":"info","message":"Server running on http://localhost:3000","timestamp":"2024-10-25T15:43:43.180Z"}

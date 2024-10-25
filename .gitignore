@@ -5,4 +5,5 @@ conversations.db
 .vs
 *.db-shm
 *.db-wal
+*.log
 
