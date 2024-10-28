@@ -1,106 +1,113 @@
 // server.js
 
-const favicon = require('serve-favicon');
+// Import dependencies
 require('dotenv').config();
 const express = require('express');
-const OpenAI = require('openai'); // Import OpenAI directly
+const OpenAI = require('openai');
 const path = require('path');
-const db = require('./database'); // Import the database module
-const { encode } = require('gpt-3-encoder'); // Import the encoder
-const Joi = require('joi'); // Import Joi for input validation
-const winston = require('winston'); // Import Winston for logging
+const favicon = require('serve-favicon');
+const winston = require('winston');
+const Joi = require('joi');
+const { encode } = require('gpt-3-encoder');
+const db = require('./database');
 
+// Initialize Express app
 const app = express();
-app.use(express.json()); // Middleware to parse JSON bodies
+app.use(express.json());
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
 
-// Setup Winston logger
+// Setup Winston logger with environment variables for configurability
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
+    winston.format.timestamp(),
+    winston.format.json()
   ),
   transports: [
-      new winston.transports.Console(),
-      new winston.transports.File({ filename: 'error.log', level: 'error' }),
-      new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.Console(),
+    new winston.transports.File({
+      filename: process.env.LOG_FILE_ERROR || 'error.log',
+      level: 'error',
+    }),
+    new winston.transports.File({
+      filename: process.env.LOG_FILE_COMBINED || 'combined.log',
+    }),
   ],
 });
 
 // Serve static files from the project directory
 app.use(express.static(__dirname));
 
-// Initialize OpenAI clients with different configurations
+// Configuration constants
+const PORT = process.env.PORT || 3000;
+
+// Initialize OpenAI clients with configurable base URLs and API keys
 const openaiDefault = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Your primary OpenAI API key from .env
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const openaiNVIDIA = new OpenAI({
-  apiKey: process.env.NVIDIA_API_KEY, // NVIDIA API key from .env
-  baseURL: 'https://integrate.api.nvidia.com/v1', // NVIDIA and Meta API base URL
+  apiKey: process.env.NVIDIA_API_KEY,
+  baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
 });
 
-// Define model constants
-const MODEL_DEFAULT = "gpt-4o-mini";
-const MODEL_OPENAI_ALTERNATE = "gpt-4o-mini-2024-07-18";
-const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct";
-const MODEL_META = "meta/llama-3.2-3b-instruct";
+// Model constants
+const MODEL_DEFAULT = 'gpt-4o-mini';
+const MODEL_OPENAI_ALTERNATE = 'gpt-4o-mini-2024-07-18';
+const MODEL_NVIDIA = 'nvidia/llama-3.1-nemotron-70b-instruct';
+const MODEL_META = 'meta/llama-3.2-3b-instruct';
 
-// List of allowed models for validation
-const ALLOWED_MODELS = [
-  MODEL_DEFAULT,
-  MODEL_OPENAI_ALTERNATE,
-  MODEL_NVIDIA,
-  MODEL_META
-];
+// Allowed models, configurable via environment variable
+const ALLOWED_MODELS = process.env.ALLOWED_MODELS
+  ? process.env.ALLOWED_MODELS.split(',')
+  : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META];
 
 // Helper functions to promisify db.run and db.all
-const run = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function(err) {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(this);
-            }
-        });
+const run = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(this);
+      }
     });
-};
+  });
 
-const all = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(rows);
-            }
-        });
+const all = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
     });
-};
+  });
 
-// Define Joi schemas for input validation
+// Joi schemas for input validation
 const askSchema = Joi.object({
-    question: Joi.string().min(1).required(),
-    model: Joi.string().optional(),
-    chatBoxNumber: Joi.number().integer().min(1).required(),
-    context: Joi.array().items(
-        Joi.object({
-            user: Joi.string().required(),
-            message: Joi.string().required(),
-            timestamp: Joi.string().optional(),
-            tokens: Joi.number().optional()
-        })
-    ).optional()
+  question: Joi.string().min(1).required(),
+  model: Joi.string().optional(),
+  chatBoxNumber: Joi.number().integer().min(1).required(),
+  context: Joi.array()
+    .items(
+      Joi.object({
+        user: Joi.string().required(),
+        message: Joi.string().required(),
+        timestamp: Joi.string().optional(),
+        tokens: Joi.number().optional(),
+      })
+    )
+    .optional(),
 });
 
-// Serve the HTML file at the root URL
+// Serve the main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Handle POST requests to '/ask'
+// Handle '/ask' endpoint
 app.post('/ask', async (req, res) => {
   // Validate request body
   const { error, value } = askSchema.validate(req.body);
@@ -115,7 +122,7 @@ app.post('/ask', async (req, res) => {
 
   try {
     let openaiClient;
-    let responseUserIdentifier;
+    let responseUserIdentifier = selectedModel;
 
     // Validate model
     if (!ALLOWED_MODELS.includes(selectedModel)) {
@@ -123,13 +130,14 @@ app.post('/ask', async (req, res) => {
       return res.status(400).json({ error: 'Invalid model specified.' });
     }
 
-    // Select the appropriate OpenAI client based on the model name prefix
-    if (selectedModel.startsWith("gpt-")) {
+    // Select OpenAI client based on model
+    if (selectedModel.startsWith('gpt-')) {
       openaiClient = openaiDefault;
-      responseUserIdentifier = selectedModel;
-    } else if (selectedModel.startsWith("nvidia/") || selectedModel.startsWith("meta/")) {
+    } else if (
+      selectedModel.startsWith('nvidia/') ||
+      selectedModel.startsWith('meta/')
+    ) {
       openaiClient = openaiNVIDIA;
-      responseUserIdentifier = selectedModel;
     } else {
       logger.error(`Unsupported model specified: ${selectedModel}`);
       return res.status(400).json({ error: 'Unsupported model specified.' });
@@ -138,14 +146,17 @@ app.post('/ask', async (req, res) => {
     // Calculate tokens used for the user question
     const tokensUsedUser = encode(question).length;
 
-    // Set user identifier based on chatBoxNumber
+    // Set user identifier
     const userIdentifier = `You${chatBoxNumber}`;
 
     // Save user question to the database
-    await run(`
+    await run(
+      `
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
       VALUES (?, 'Human', ?, ?, ?, ?)
-    `, [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]);
+    `,
+      [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]
+    );
 
     logger.info(`User message saved for chatBoxNumber ${chatBoxNumber}`);
 
@@ -153,7 +164,7 @@ app.post('/ask', async (req, res) => {
     let messages = [];
 
     if (Array.isArray(context) && context.length > 0) {
-      context.forEach(msg => {
+      context.forEach((msg) => {
         if (msg.user.startsWith('You')) {
           messages.push({ role: 'user', content: msg.message });
         } else if (msg.user === 'System') {
@@ -171,7 +182,7 @@ app.post('/ask', async (req, res) => {
     const response = await openaiClient.chat.completions.create({
       model: selectedModel,
       messages: messages,
-      temperature: 0.7,
+      temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -182,40 +193,49 @@ app.post('/ask', async (req, res) => {
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
     // Save AI response to the database
-    await run(`
+    await run(
+      `
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?, ?, ?)
-    `, [chatBoxNumber, selectedModel, responseUserIdentifier, answer, timestamp, tokensUsed]);
+    `,
+      [chatBoxNumber, selectedModel, responseUserIdentifier, answer, timestamp, tokensUsed]
+    );
 
     logger.info(`AI message saved for chatBoxNumber ${chatBoxNumber}`);
 
     res.json({ answer, usage: response.usage });
   } catch (err) {
     logger.error(`Error in /ask endpoint: ${err.message}`, { stack: err.stack });
-
-    // Send a generic error message to the client
-    res.status(500).json({ error: 'An error occurred while processing your request.' });
+    res
+      .status(500)
+      .json({ error: 'An error occurred while processing your request.' });
   }
 });
 
-// Handle POST requests to '/get-context'
+// Handle '/get-context' endpoint
 app.post('/get-context', async (req, res) => {
   const { chatBoxNumbers } = req.body;
-  
+
   if (!Array.isArray(chatBoxNumbers) || chatBoxNumbers.length === 0) {
     logger.warn('Invalid chatBoxNumbers provided.');
-    return res.status(400).json({ error: 'chatBoxNumbers must be a non-empty array.' });
+    return res
+      .status(400)
+      .json({ error: 'chatBoxNumbers must be a non-empty array.' });
   }
 
   try {
-    // Ensure all chatBoxNumbers are valid integers
-    const validChatBoxNumbers = chatBoxNumbers.every(num => Number.isInteger(num) && num >= 1);
+    // Validate chatBoxNumbers
+    const validChatBoxNumbers = chatBoxNumbers.every(
+      (num) => Number.isInteger(num) && num >= 1
+    );
     if (!validChatBoxNumbers) {
       logger.warn('Invalid chatBoxNumbers provided.');
-      return res.status(400).json({ error: 'chatBoxNumbers must contain valid integers.' });
+      return res
+        .status(400)
+        .json({ error: 'chatBoxNumbers must contain valid integers.' });
     }
 
-    // Create placeholders for SQL IN clause
+    // Fetch context from the database
     const placeholders = chatBoxNumbers.map(() => '?').join(',');
     const sql = `
       SELECT user, message, timestamp, tokens
@@ -232,25 +252,23 @@ app.post('/get-context', async (req, res) => {
   }
 });
 
-// Global Error Handling Middleware
+// Global error handling middleware
 app.use((err, req, res, next) => {
-    logger.error('Unhandled error:', {
-        message: err.message,
-        stack: err.stack,
-        status: err.status || 500,
-        url: req.originalUrl,
-        method: req.method,
-        ip: req.ip
-    });
+  logger.error('Unhandled error:', {
+    message: err.message,
+    stack: err.stack,
+    status: err.status || 500,
+    url: req.originalUrl,
+    method: req.method,
+    ip: req.ip,
+  });
 
-    // Send a generic error message to the client
-    res.status(500).json({
-        error: 'An unexpected error occurred. Please try again later.'
-    });
+  res
+    .status(500)
+    .json({ error: 'An unexpected error occurred. Please try again later.' });
 });
 
 // Start the server
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   logger.info(`Server running on http://localhost:${PORT}`);
 });
