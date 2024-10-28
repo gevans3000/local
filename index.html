@@ -3,90 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>Multi-Chatbox Interface</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f2f2f2;
-        }
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 20px;
-        }
-        .chat-row {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-        .chat-box {
-            background-color: white;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            width: 400px;
-            text-align: left;
-            overflow-y: auto;
-            max-height: 500px;
-            margin: 0 10px;
-        }
-        input[type="text"], button, textarea, .checkbox-container {
-            width: calc(100% - 22px);
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-        }
-        button {
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-right: 10px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .message {
-            margin-top: 15px;
-            font-size: 16px;
-        }
-        .timestamp {
-            font-size: 12px;
-            color: #888;
-            margin-left: 5px;
-        }
-        .spinner {
-            border: 8px solid #f3f3f3; /* Light grey */
-            border-top: 8px solid #007bff; /* Blue */
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 2s linear infinite;
-            margin: 10px auto; /* Center the spinner */
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .checkbox-container {
-            display: flex;
-            flex-direction: column;
-        }
-        .checkbox-container label {
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
     <!-- Include Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Include DOMPurify -->
-<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+    <!-- Your custom scripts -->
     <script src="api.js"></script>
     <script src="ui.js"></script>
     <script src="main.js"></script>
@@ -103,9 +25,12 @@
                     <button id="getContextButton1" onclick="getContext(1)">Get Context</button>
                     <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
                 </div>
+                <div class="messages" id="messages1">
+                    <!-- Messages will appear here -->
+                </div>
                 <div class="checkbox-container">
                     <label><input type="checkbox" id="selectAllChatBoxes"> Select All</label>
-                    <label><input type="checkbox" id="selectChatBox1" checked disabled> ChatBox 1</label>
+                    <label><input type="checkbox" id="selectChatBox1"> ChatBox 1</label>
                     <label><input type="checkbox" id="selectChatBox2"> ChatBox 2</label>
                     <label><input type="checkbox" id="selectChatBox3"> ChatBox 3</label>
                     <label><input type="checkbox" id="selectChatBox4"> ChatBox 4</label>
@@ -121,6 +46,9 @@
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput2" placeholder="Enter custom model name (optional)" rows="2"></textarea>
                 </div>
+                <div class="messages" id="messages2">
+                    <!-- Messages will appear here -->
+                </div>
             </div>
         </div>
         <div class="chat-row">
@@ -132,6 +60,9 @@
                     <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
                     <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
                 </div>
+                <div class="messages" id="messages3">
+                    <!-- Messages will appear here -->
+                </div>
             </div>
             <div class="chat-box" id="chatBox4">
                 <h1>Chat with OpenAI NVIDIA LLM</h1>
@@ -142,6 +73,9 @@
                     <div id="loadingSpinner4" class="spinner" style="display: none;"></div>
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput4" placeholder="Enter custom model name (optional)" rows="2"></textarea>
+                </div>
+                <div class="messages" id="messages4">
+                    <!-- Messages will appear here -->
                 </div>
             </div>
         </div>

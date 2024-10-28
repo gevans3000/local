@@ -6,4 +6,4 @@ conversations.db
 *.db-shm
 *.db-wal
 *.log
-
+error.log

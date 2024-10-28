@@ -115,9 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Function to display messages in the chat box
 function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, isMarkdown = false) {
-    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
-    if (!chatBox) {
-        console.error(`ChatBox${chatBoxNumber} not found.`);
+    const messagesContainer = document.getElementById(`messages${chatBoxNumber}`);
+    if (!messagesContainer) {
+        console.error(`Messages container for chatBox${chatBoxNumber} not found.`);
         return;
     }
 
@@ -140,8 +140,8 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
     messageInfo.textContent = `${user} | ${timestamp}` + (tokens ? ` | Tokens: ${tokens}` : '');
     messageElement.appendChild(messageInfo);
 
-    chatBox.appendChild(messageElement);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    // Insert the message at the top of the messages container
+    messagesContainer.insertBefore(messageElement, messagesContainer.firstChild);
 }
 
 // Refactored function to set element visibility
@@ -154,11 +154,11 @@ function setElementVisibility(elementId, visible) {
 
 // Show/hide spinner using the refactored function
 function showSpinner(chatBoxNumber) {
-    setElementVisibility(`spinner${chatBoxNumber}`, true);
+    setElementVisibility(`loadingSpinner${chatBoxNumber}`, true);
 }
 
 function hideSpinner(chatBoxNumber) {
-    setElementVisibility(`spinner${chatBoxNumber}`, false);
+    setElementVisibility(`loadingSpinner${chatBoxNumber}`, false);
 }
 
 // Show/hide stop button using the refactored function
@@ -274,12 +274,18 @@ async function getContext(chatBoxNumber) {
         showSpinner(chatBoxNumber);
 
         // Collect selected chatboxes
-        let selectedChatBoxes = [1]; // ChatBox1 is always selected
-        for (let i = 2; i <=4; i++) {
+        let selectedChatBoxes = [];
+        for (let i = 2; i <= 4; i++) {
             const checkbox = document.getElementById(`selectChatBox${i}`);
             if (checkbox && checkbox.checked) {
                 selectedChatBoxes.push(i);
             }
+        }
+
+        if (selectedChatBoxes.length === 0) {
+            displayMessage(chatBoxNumber, 'System', 'No chat boxes selected.', new Date().toLocaleTimeString());
+            hideSpinner(chatBoxNumber);
+            return;
         }
 
         const response = await fetch('/get-context', {
@@ -292,28 +298,27 @@ async function getContext(chatBoxNumber) {
         const data = await response.json();
         if (data.context && Array.isArray(data.context)) {
             // Clear existing messages in chatBox1
-            const chatBox = document.getElementById(`chatBox1`);
-            if (chatBox) {
-                const messages = chatBox.querySelectorAll('.message');
-                messages.forEach(message => message.remove());
+            const messagesContainer = document.getElementById(`messages${chatBoxNumber}`);
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
             } else {
-                console.error('chatBox1 not found.');
+                console.error(`Messages container for chatBox${chatBoxNumber} not found.`);
             }
 
             // Update currentContext1
             currentContext1 = data.context;
 
-            data.context.forEach(message => {
-                // Determine if the message is from the AI model by checking if user starts with model prefixes
+            // Reverse the context array to display most recent messages at the top
+            data.context.slice().reverse().forEach(message => {
                 const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
-                displayMessage(1, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
+                displayMessage(chatBoxNumber, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
             });
         } else if (data.error) {
-            displayMessage(1, 'System', `Failed to get context: ${data.error}`, new Date().toLocaleTimeString());
+            displayMessage(chatBoxNumber, 'System', `Failed to get context: ${data.error}`, new Date().toLocaleTimeString());
         }
     } catch (error) {
         console.error('Fetch error:', error);
-        displayMessage(1, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
+        displayMessage(chatBoxNumber, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
     } finally {
         // Hide spinner after fetching context
         hideSpinner(chatBoxNumber);
