@@ -125,22 +125,16 @@ app.post('/ask', async (req, res) => {
     let responseUserIdentifier = selectedModel;
 
     // Validate model
-    if (!ALLOWED_MODELS.includes(selectedModel)) {
-      logger.error(`Invalid model specified: ${selectedModel}`);
-      return res.status(400).json({ error: 'Invalid model specified.' });
-    }
+    //if (!ALLOWED_MODELS.includes(selectedModel)) {
+    //  logger.error(`Invalid model specified: ${selectedModel}`);
+    //  return res.status(400).json({ error: 'Invalid model specified.' });
+    //}
 
     // Select OpenAI client based on model
     if (selectedModel.startsWith('gpt-')) {
       openaiClient = openaiDefault;
-    } else if (
-      selectedModel.startsWith('nvidia/') ||
-      selectedModel.startsWith('meta/')
-    ) {
-      openaiClient = openaiNVIDIA;
     } else {
-      logger.error(`Unsupported model specified: ${selectedModel}`);
-      return res.status(400).json({ error: 'Unsupported model specified.' });
+      openaiClient = openaiNVIDIA;
     }
 
     // Calculate tokens used for the user question
