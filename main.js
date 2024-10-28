@@ -1,5 +1,6 @@
 // main.js
 
+// AbortControllers for each chat box
 let controller1 = null;
 let controller2 = null;
 let controller3 = null;
@@ -11,7 +12,7 @@ let currentContext1 = [];
 // Object to store system prompts for each chatBox
 const systemPrompts = {};
 
-// Function to handle "Select All" checkbox behavior
+// Function to handle "Select All" checkbox behavior and system prompts
 document.addEventListener('DOMContentLoaded', () => {
     const selectAllCheckbox = document.getElementById('selectAllChatBoxes');
     const chatBoxCheckboxes = [
@@ -39,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Select All checkbox or individual chatBox checkboxes not found.');
     }
 
-    // Inject gear icons and setup system prompt functionality
+    // Inject gear icons and setup system prompt functionality for each chatBox
     for (let i = 1; i <= 4; i++) {
         const chatBoxHeader = document.querySelector(`#chatBox${i} h1`);
         if (chatBoxHeader) {
@@ -124,13 +125,13 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
     messageElement.classList.add('message', user.startsWith('You') ? 'user-message' : 'assistant-message');
 
     const messageContent = document.createElement('p');
-    messageContent.textContent = message;
-    if (isMarkdown) {
-        // If message is from AI model, apply markdown parsing if necessary
-        // This assumes a markdown parser is available
-        // For example, using marked.js or similar
-        // Here we keep it simple
-        messageContent.innerHTML = message;
+    if (isMarkdown && user !== 'System') {
+        // Parse and sanitize markdown content
+        const rawHtmlContent = marked.parse(message);
+        const sanitizedHtmlContent = DOMPurify.sanitize(rawHtmlContent);
+        messageContent.innerHTML = sanitizedHtmlContent;
+    } else {
+        messageContent.textContent = message;
     }
     messageElement.appendChild(messageContent);
 
@@ -143,36 +144,30 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Function to show spinner
+// Refactored function to set element visibility
+function setElementVisibility(elementId, visible) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.style.display = visible ? 'inline-block' : 'none';
+    }
+}
+
+// Show/hide spinner using the refactored function
 function showSpinner(chatBoxNumber) {
-    const spinner = document.getElementById(`spinner${chatBoxNumber}`);
-    if (spinner) {
-        spinner.style.display = 'inline-block';
-    }
+    setElementVisibility(`spinner${chatBoxNumber}`, true);
 }
 
-// Function to hide spinner
 function hideSpinner(chatBoxNumber) {
-    const spinner = document.getElementById(`spinner${chatBoxNumber}`);
-    if (spinner) {
-        spinner.style.display = 'none';
-    }
+    setElementVisibility(`spinner${chatBoxNumber}`, false);
 }
 
-// Function to show stop button
+// Show/hide stop button using the refactored function
 function showStopButton(chatBoxNumber) {
-    const stopButton = document.getElementById(`stopButton${chatBoxNumber}`);
-    if (stopButton) {
-        stopButton.style.display = 'inline-block';
-    }
+    setElementVisibility(`stopButton${chatBoxNumber}`, true);
 }
 
-// Function to hide stop button
 function hideStopButton(chatBoxNumber) {
-    const stopButton = document.getElementById(`stopButton${chatBoxNumber}`);
-    if (stopButton) {
-        stopButton.style.display = 'none';
-    }
+    setElementVisibility(`stopButton${chatBoxNumber}`, false);
 }
 
 // Function to handle form submission
@@ -196,7 +191,7 @@ async function askQuestion(chatBoxNumber, event = null) {
     // Determine the model based on chatBoxNumber and textarea input
     if (chatBoxNumber === 2 || chatBoxNumber === 4) {
         const modelInput = document.getElementById(`modelInput${chatBoxNumber}`);
-        model = (modelInput && modelInput.value.trim() !== "") ? modelInput.value.trim() : 
+        model = (modelInput && modelInput.value.trim() !== "") ? modelInput.value.trim() :
                 (chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" : "meta/llama-3.2-3b-instruct");
     } else {
         model = chatBoxNumber === 1 ? "gpt-4o-mini" :
@@ -213,21 +208,7 @@ async function askQuestion(chatBoxNumber, event = null) {
         showStopButton(chatBoxNumber);
 
         // Initialize AbortController
-        switch(chatBoxNumber) {
-            case 1:
-                controller1 = new AbortController();
-                break;
-            case 2:
-                controller2 = new AbortController();
-                break;
-            case 3:
-                controller3 = new AbortController();
-                break;
-            case 4:
-                controller4 = new AbortController();
-                break;
-        }
-
+        setController(chatBoxNumber, new AbortController());
         const signal = getControllerSignal(chatBoxNumber);
 
         try {
@@ -241,7 +222,7 @@ async function askQuestion(chatBoxNumber, event = null) {
             // Prepare context
             let context = [];
             if (chatBoxNumber === 1 && currentContext1.length > 0) {
-                context = currentContext1;
+                context = [...currentContext1];
             }
 
             // Include system prompt in context
@@ -282,7 +263,7 @@ async function askQuestion(chatBoxNumber, event = null) {
         questionInput.value = '';
         questionInput.focus();
     } else {
-        displayMessage(chatBoxNumber, 'System', 'Please enter a question.');
+        displayMessage(chatBoxNumber, 'System', 'Please enter a question.', new Date().toLocaleTimeString());
     }
 }
 
@@ -341,54 +322,54 @@ async function getContext(chatBoxNumber) {
 
 // Function to stop a request
 function stopRequest(chatBoxNumber) {
+    const controller = getController(chatBoxNumber);
+    if (controller) controller.abort();
+}
+
+// Function to get AbortController signal
+function getControllerSignal(chatBoxNumber) {
+    const controller = getController(chatBoxNumber);
+    return controller ? controller.signal : null;
+}
+
+// Function to set AbortController for a chatBox
+function setController(chatBoxNumber, controller) {
     switch(chatBoxNumber) {
         case 1:
-            if (controller1) controller1.abort();
+            controller1 = controller;
             break;
         case 2:
-            if (controller2) controller2.abort();
+            controller2 = controller;
             break;
         case 3:
-            if (controller3) controller3.abort();
+            controller3 = controller;
             break;
         case 4:
-            if (controller4) controller4.abort();
+            controller4 = controller;
             break;
         default:
             console.error('Invalid chatBoxNumber:', chatBoxNumber);
     }
 }
 
-// Function to get AbortController signal
-function getControllerSignal(chatBoxNumber) {
+// Function to get AbortController for a chatBox
+function getController(chatBoxNumber) {
     switch(chatBoxNumber) {
         case 1:
-            return controller1 ? controller1.signal : null;
+            return controller1;
         case 2:
-            return controller2 ? controller2.signal : null;
+            return controller2;
         case 3:
-            return controller3 ? controller3.signal : null;
+            return controller3;
         case 4:
-            return controller4 ? controller4.signal : null;
+            return controller4;
         default:
+            console.error('Invalid chatBoxNumber:', chatBoxNumber);
             return null;
     }
 }
 
 // Function to reset AbortController
 function resetController(chatBoxNumber) {
-    switch(chatBoxNumber) {
-        case 1:
-            controller1 = null;
-            break;
-        case 2:
-            controller2 = null;
-            break;
-        case 3:
-            controller3 = null;
-            break;
-        case 4:
-            controller4 = null;
-            break;
-    }
+    setController(chatBoxNumber, null);
 }

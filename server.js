@@ -28,7 +28,7 @@ const logger = winston.createLogger({
   ],
 });
 
-// Serve static files (JavaScript, CSS, etc.) from the project directory
+// Serve static files from the project directory
 app.use(express.static(__dirname));
 
 // Initialize OpenAI clients with different configurations
@@ -46,6 +46,14 @@ const MODEL_DEFAULT = "gpt-4o-mini";
 const MODEL_OPENAI_ALTERNATE = "gpt-4o-mini-2024-07-18";
 const MODEL_NVIDIA = "nvidia/llama-3.1-nemotron-70b-instruct";
 const MODEL_META = "meta/llama-3.2-3b-instruct";
+
+// List of allowed models for validation
+const ALLOWED_MODELS = [
+  MODEL_DEFAULT,
+  MODEL_OPENAI_ALTERNATE,
+  MODEL_NVIDIA,
+  MODEL_META
+];
 
 // Helper functions to promisify db.run and db.all
 const run = (sql, params = []) => {
@@ -72,7 +80,7 @@ const all = (sql, params = []) => {
     });
 };
 
-// Define Joi schemas
+// Define Joi schemas for input validation
 const askSchema = Joi.object({
     question: Joi.string().min(1).required(),
     model: Joi.string().optional(),
@@ -93,7 +101,7 @@ app.get('/', (req, res) => {
 });
 
 // Handle POST requests to '/ask'
-app.post('/ask', async (req, res, next) => {
+app.post('/ask', async (req, res) => {
   // Validate request body
   const { error, value } = askSchema.validate(req.body);
   if (error) {
@@ -109,6 +117,12 @@ app.post('/ask', async (req, res, next) => {
     let openaiClient;
     let responseUserIdentifier;
 
+    // Validate model
+    if (!ALLOWED_MODELS.includes(selectedModel)) {
+      logger.error(`Invalid model specified: ${selectedModel}`);
+      return res.status(400).json({ error: 'Invalid model specified.' });
+    }
+
     // Select the appropriate OpenAI client based on the model name prefix
     if (selectedModel.startsWith("gpt-")) {
       openaiClient = openaiDefault;
@@ -117,8 +131,8 @@ app.post('/ask', async (req, res, next) => {
       openaiClient = openaiNVIDIA;
       responseUserIdentifier = selectedModel;
     } else {
-      logger.error(`Invalid model specified: ${selectedModel}`);
-      return res.status(400).json({ error: 'Invalid model specified.' });
+      logger.error(`Unsupported model specified: ${selectedModel}`);
+      return res.status(400).json({ error: 'Unsupported model specified.' });
     }
 
     // Calculate tokens used for the user question
@@ -127,7 +141,7 @@ app.post('/ask', async (req, res, next) => {
     // Set user identifier based on chatBoxNumber
     const userIdentifier = `You${chatBoxNumber}`;
 
-    // Save user question to the database with tokens and chatBoxNumber
+    // Save user question to the database
     await run(`
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
       VALUES (?, 'Human', ?, ?, ?, ?)
@@ -142,6 +156,8 @@ app.post('/ask', async (req, res, next) => {
       context.forEach(msg => {
         if (msg.user.startsWith('You')) {
           messages.push({ role: 'user', content: msg.message });
+        } else if (msg.user === 'System') {
+          messages.push({ role: 'system', content: msg.message });
         } else {
           messages.push({ role: 'assistant', content: msg.message });
         }
@@ -158,10 +174,14 @@ app.post('/ask', async (req, res, next) => {
       temperature: 0.7,
     });
 
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error('No response from OpenAI API.');
+    }
+
     const answer = response.choices[0].message.content;
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
-    // Save GPT response to the database with tokens and chatBoxNumber
+    // Save AI response to the database
     await run(`
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -172,12 +192,14 @@ app.post('/ask', async (req, res, next) => {
     res.json({ answer, usage: response.usage });
   } catch (err) {
     logger.error(`Error in /ask endpoint: ${err.message}`, { stack: err.stack });
-    next(err); // Pass to the global error handler
+
+    // Send a generic error message to the client
+    res.status(500).json({ error: 'An error occurred while processing your request.' });
   }
 });
 
 // Handle POST requests to '/get-context'
-app.post('/get-context', async (req, res, next) => {
+app.post('/get-context', async (req, res) => {
   const { chatBoxNumbers } = req.body;
   
   if (!Array.isArray(chatBoxNumbers) || chatBoxNumbers.length === 0) {
@@ -186,6 +208,13 @@ app.post('/get-context', async (req, res, next) => {
   }
 
   try {
+    // Ensure all chatBoxNumbers are valid integers
+    const validChatBoxNumbers = chatBoxNumbers.every(num => Number.isInteger(num) && num >= 1);
+    if (!validChatBoxNumbers) {
+      logger.warn('Invalid chatBoxNumbers provided.');
+      return res.status(400).json({ error: 'chatBoxNumbers must contain valid integers.' });
+    }
+
     // Create placeholders for SQL IN clause
     const placeholders = chatBoxNumbers.map(() => '?').join(',');
     const sql = `
@@ -214,10 +243,9 @@ app.use((err, req, res, next) => {
         ip: req.ip
     });
 
-    const isOperational = err.isOperational || false;
-
-    res.status(err.status || 500).json({
-        error: isOperational ? err.message : 'An unexpected error occurred. Please try again later.'
+    // Send a generic error message to the client
+    res.status(500).json({
+        error: 'An unexpected error occurred. Please try again later.'
     });
 });
 
