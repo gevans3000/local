@@ -232,7 +232,7 @@ app.post('/get-context', async (req, res) => {
     // Fetch context from the database
     const placeholders = chatBoxNumbers.map(() => '?').join(',');
     const sql = `
-      SELECT user, message, timestamp, tokens
+      SELECT chatBoxNumber, user, message, timestamp, tokens
       FROM conversations
       WHERE chatBoxNumber IN (${placeholders})
       ORDER BY datetime(timestamp) ASC

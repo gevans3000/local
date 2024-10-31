@@ -13,6 +13,10 @@
     --spinner-color: #007bff;
     --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     --transition-speed: 0.3s;
+    --dropdown-bg: #ffffff;
+    --dropdown-border: #ccc;
+    --dropdown-hover-bg: #f1f1f1;
+    --dropdown-shadow: 0 8px 16px rgba(0,0,0,0.2);
 }
 
 * {
@@ -125,7 +129,7 @@ button {
 }
 
 button:hover {
-    background-color: darken(var(--primary-color), 10%);
+    background-color: #0056b3;
     transform: translateY(-2px);
 }
 
@@ -135,14 +139,17 @@ button:disabled {
     transform: none;
 }
 
-.checkbox-container {
+.checkbox-container,
+.dropdown-container {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 10px;
+    position: relative;
 }
 
-.checkbox-container label {
+.checkbox-container label,
+.dropdown-content label {
     display: flex;
     align-items: center;
     font-size: 0.9rem;
@@ -150,7 +157,8 @@ button:disabled {
     user-select: none;
 }
 
-.checkbox-container input[type="checkbox"] {
+.checkbox-container input[type="checkbox"],
+.dropdown-content input[type="checkbox"] {
     margin-right: 5px;
     width: 16px;
     height: 16px;
@@ -230,6 +238,60 @@ textarea {
     resize: vertical;
 }
 
+/* Dropdown Styles */
+.dropdown-container {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 15px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color var(--transition-speed);
+}
+
+.dropdown-button:hover {
+    background-color: #0056b3;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: var(--dropdown-bg);
+    min-width: 160px;
+    box-shadow: var(--dropdown-shadow);
+    padding: 10px;
+    z-index: 1;
+    border: 1px solid var(--dropdown-border);
+    border-radius: 4px;
+    top: 110%;
+    left: 0;
+}
+
+.dropdown-content label {
+    display: block;
+    padding: 5px 0;
+}
+
+.dropdown-content label:hover {
+    background-color: var(--dropdown-hover-bg);
+}
+
+.dropdown-container.show .dropdown-content {
+    display: block;
+}
+
+/* Responsive Styles */
 @media (max-width: 768px) {
     .chat-box {
         max-width: 100%;
@@ -239,5 +301,21 @@ textarea {
     .chat-container {
         width: 100%;
         padding: 10px;
+    }
+
+    .dropdown-button {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    button {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    input[type="text"],
+    textarea {
+        font-size: 0.9rem;
+        padding: 10px 12px;
     }
 }

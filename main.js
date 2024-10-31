@@ -1,10 +1,7 @@
 // main.js
 
 // AbortControllers for each chat box
-let controller1 = null;
-let controller2 = null;
-let controller3 = null;
-let controller4 = null;
+let controllers = {};
 
 // Variable to store context for chatBox1
 let currentContext1 = [];
@@ -12,108 +9,65 @@ let currentContext1 = [];
 // Object to store system prompts for each chatBox
 const systemPrompts = {};
 
-// Function to handle "Select All" checkbox behavior and system prompts
-document.addEventListener('DOMContentLoaded', () => {
-    const selectAllCheckbox = document.getElementById('selectAllChatBoxes');
-    const chatBoxCheckboxes = [
-        document.getElementById('selectChatBox2'),
-        document.getElementById('selectChatBox3'),
-        document.getElementById('selectChatBox4')
-    ];
-
-    if (selectAllCheckbox && chatBoxCheckboxes.every(cb => cb !== null)) {
-        // When "Select All" is clicked
-        selectAllCheckbox.addEventListener('change', () => {
-            chatBoxCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-        });
-
-        // When any individual checkbox is clicked
-        chatBoxCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
-                selectAllCheckbox.checked = allChecked;
-            });
-        });
-    } else {
-        console.error('Select All checkbox or individual chatBox checkboxes not found.');
+/**
+ * Handles the visibility of elements by their ID.
+ *
+ * @param {string} elementId - The ID of the element to show or hide.
+ * @param {boolean} visible - Whether the element should be visible.
+ */
+function setElementVisibility(elementId, visible) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.style.display = visible ? 'inline-block' : 'none';
     }
+}
 
-    // Inject gear icons and setup system prompt functionality for each chatBox
-    for (let i = 1; i <= 4; i++) {
-        const chatBoxHeader = document.querySelector(`#chatBox${i} h1`);
-        if (chatBoxHeader) {
-            // Create gear icon
-            const gearIcon = document.createElement('span');
-            gearIcon.innerHTML = '⚙️';
-            gearIcon.style.cursor = 'pointer';
-            gearIcon.style.marginLeft = '10px';
-            gearIcon.title = 'Set System Prompt';
-            gearIcon.setAttribute('aria-label', 'Set System Prompt');
+/**
+ * Shows the loading spinner for a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function showSpinner(chatBoxNumber) {
+    setElementVisibility(`loadingSpinner${chatBoxNumber}`, true);
+}
 
-            // Append gear icon to header
-            chatBoxHeader.appendChild(gearIcon);
+/**
+ * Hides the loading spinner for a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function hideSpinner(chatBoxNumber) {
+    setElementVisibility(`loadingSpinner${chatBoxNumber}`, false);
+}
 
-            // Create system prompt overlay
-            const overlay = document.createElement('div');
-            overlay.id = `systemPromptOverlay${i}`;
-            overlay.style.display = 'none';
-            overlay.style.position = 'fixed';
-            overlay.style.top = '50%';
-            overlay.style.left = '50%';
-            overlay.style.transform = 'translate(-50%, -50%)';
-            overlay.style.backgroundColor = '#fff';
-            overlay.style.border = '1px solid #ccc';
-            overlay.style.padding = '20px';
-            overlay.style.boxShadow = '0 2px 8px rgba(0,0,0,0.26)';
-            overlay.style.zIndex = '1000';
+/**
+ * Shows the stop button for a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function showStopButton(chatBoxNumber) {
+    setElementVisibility(`stopButton${chatBoxNumber}`, true);
+}
 
-            // Create close button
-            const closeButton = document.createElement('span');
-            closeButton.innerHTML = '✖️';
-            closeButton.style.float = 'right';
-            closeButton.style.cursor = 'pointer';
-            closeButton.title = 'Close';
-            closeButton.setAttribute('aria-label', 'Close');
+/**
+ * Hides the stop button for a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function hideStopButton(chatBoxNumber) {
+    setElementVisibility(`stopButton${chatBoxNumber}`, false);
+}
 
-            // Create textarea for system prompt
-            const textarea = document.createElement('textarea');
-            textarea.id = `systemPromptTextarea${i}`;
-            textarea.rows = 4;
-            textarea.cols = 50;
-            textarea.placeholder = 'Enter system prompt here...';
-            textarea.style.width = '100%';
-
-            // Append elements to overlay
-            overlay.appendChild(closeButton);
-            const label = document.createElement('label');
-            label.htmlFor = textarea.id;
-            label.textContent = 'System Prompt:';
-            overlay.appendChild(label);
-            overlay.appendChild(document.createElement('br'));
-            overlay.appendChild(textarea);
-
-            // Append overlay to body
-            document.body.appendChild(overlay);
-
-            // Event listener to show overlay on gear icon click
-            gearIcon.addEventListener('click', () => {
-                overlay.style.display = 'block';
-                textarea.focus();
-            });
-
-            // Event listener to close overlay
-            closeButton.addEventListener('click', () => {
-                overlay.style.display = 'none';
-            });
-        } else {
-            console.error(`Header for chatBox${i} not found.`);
-        }
-    }
-});
-
-// Function to display messages in the chat box
+/**
+ * Displays a message in the specified chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ * @param {string} user - The user identifier ('You1', 'gpt-4o-mini', etc.).
+ * @param {string} message - The message content.
+ * @param {string} timestamp - The timestamp of the message.
+ * @param {number} [tokens=null] - The number of tokens used (optional).
+ * @param {boolean} [isMarkdown=false] - Whether the message content is Markdown.
+ */
 function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, isMarkdown = false) {
     const messagesContainer = document.getElementById(`messages${chatBoxNumber}`);
     if (!messagesContainer) {
@@ -144,33 +98,179 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
     messagesContainer.insertBefore(messageElement, messagesContainer.firstChild);
 }
 
-// Refactored function to set element visibility
-function setElementVisibility(elementId, visible) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.style.display = visible ? 'inline-block' : 'none';
+/**
+ * Sets up event handlers for the dropdown checkboxes.
+ */
+function setupDropdownHandlers() {
+    const dropdownContainers = document.querySelectorAll('.dropdown-container');
+
+    dropdownContainers.forEach(dropdown => {
+        const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+        if (checkboxes.length === 0) {
+            console.error('No checkboxes found in dropdown.');
+            return;
+        }
+
+        const selectAllCheckbox = dropdown.querySelector('.selectAllChatBoxes');
+        const chatBoxCheckboxes = Array.from(dropdown.querySelectorAll('.selectChatBox'));
+
+        // Event listener for "Select All"
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', () => {
+                chatBoxCheckboxes.forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                });
+            });
+        }
+
+        // Event listeners for individual checkboxes
+        chatBoxCheckboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+            });
+        });
+    });
+}
+
+/**
+ * Handles the "Get Context" button click.
+ */
+function getContext() {
+    const event = window.event;
+    if (!event) {
+        console.error('Event not found.');
+        return;
+    }
+
+    const button = event.target || event.srcElement;
+    const chatBox = button.closest('.chat-box');
+    if (!chatBox) {
+        console.error('Chat box container not found.');
+        return;
+    }
+
+    const dropdownContent = chatBox.querySelector('.dropdown-content');
+    if (!dropdownContent) {
+        console.error('Dropdown content not found.');
+        return;
+    }
+
+    const checkboxes = dropdownContent.querySelectorAll('input[type="checkbox"]');
+    if (checkboxes.length === 0) {
+        console.error('No checkboxes found in dropdown.');
+        return;
+    }
+
+    const selectAllCheckbox = dropdownContent.querySelector('.selectAllChatBoxes');
+    const chatBoxCheckboxes = Array.from(dropdownContent.querySelectorAll('.selectChatBox'));
+
+    let selectedChatBoxes = [];
+
+    if (selectAllCheckbox && selectAllCheckbox.checked) {
+        selectedChatBoxes = [1, 2, 3, 4];
+    } else {
+        chatBoxCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                const num = parseInt(cb.dataset.chatbox);
+                if (!isNaN(num)) selectedChatBoxes.push(num);
+            }
+        });
+    }
+
+    if (selectedChatBoxes.length === 0) {
+        alert('Please select at least one chatbox to get context.');
+        return;
+    }
+
+    // Clear all messages in the current chatBox
+    const currentMessages = chatBox.querySelector('.messages');
+    if (currentMessages) {
+        currentMessages.innerHTML = '';
+    }
+
+    // Fetch and update context for selected chatboxes
+    fetchContext(selectedChatBoxes);
+}
+
+/**
+ * Fetches context from the server for the specified chat boxes.
+ *
+ * @param {number[]} chatBoxNumbers - Array of chat box numbers to fetch context for.
+ */
+async function fetchContext(chatBoxNumbers) {
+    try {
+        // Show spinner for selected chatboxes
+        chatBoxNumbers.forEach(number => {
+            showSpinner(number);
+        });
+
+        const response = await sendGetContextRequest(chatBoxNumbers);
+
+        if (response.context && Array.isArray(response.context)) {
+            // Clear and update messages for each selected chatbox
+            chatBoxNumbers.forEach(number => {
+                const messagesContainer = document.getElementById(`messages${number}`);
+                if (messagesContainer) {
+                    messagesContainer.innerHTML = '';
+                }
+
+                // Filter context for the specific chatbox
+                const contextForBox = response.context.filter(msg => msg.chatBoxNumber === number);
+
+                contextForBox.slice().reverse().forEach(message => {
+                    const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
+                    displayMessage(number, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
+                });
+            });
+        } else if (response.error) {
+            chatBoxNumbers.forEach(number => {
+                displayMessage(number, 'System', `Failed to get context: ${response.error}`, new Date().toLocaleTimeString());
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching context:', error);
+        chatBoxNumbers.forEach(number => {
+            displayMessage(number, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
+        });
+    } finally {
+        // Hide spinner for selected chatboxes
+        chatBoxNumbers.forEach(number => {
+            hideSpinner(number);
+        });
     }
 }
 
-// Show/hide spinner using the refactored function
-function showSpinner(chatBoxNumber) {
-    setElementVisibility(`loadingSpinner${chatBoxNumber}`, true);
+/**
+ * Sends a request to the server to get context for the specified chat boxes.
+ *
+ * @param {number[]} chatBoxNumbers - Array of chat box numbers to get context for.
+ * @returns {Promise<object>} - The server response.
+ * @throws {Error} - Throws an error if the request fails.
+ */
+async function sendGetContextRequest(chatBoxNumbers) {
+    const response = await fetch('/get-context', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatBoxNumbers: chatBoxNumbers }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch context.');
+    }
+
+    return await response.json();
 }
 
-function hideSpinner(chatBoxNumber) {
-    setElementVisibility(`loadingSpinner${chatBoxNumber}`, false);
-}
-
-// Show/hide stop button using the refactored function
-function showStopButton(chatBoxNumber) {
-    setElementVisibility(`stopButton${chatBoxNumber}`, true);
-}
-
-function hideStopButton(chatBoxNumber) {
-    setElementVisibility(`stopButton${chatBoxNumber}`, false);
-}
-
-// Function to handle form submission
+/**
+ * Handles the submission of a question in a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ * @param {Event} [event=null] - The event triggering the submission.
+ */
 async function askQuestion(chatBoxNumber, event = null) {
     if (event) {
         if (event.type === 'keypress' && event.key !== 'Enter') {
@@ -208,8 +308,8 @@ async function askQuestion(chatBoxNumber, event = null) {
         showStopButton(chatBoxNumber);
 
         // Initialize AbortController
-        setController(chatBoxNumber, new AbortController());
-        const signal = getControllerSignal(chatBoxNumber);
+        controllers[chatBoxNumber] = new AbortController();
+        const signal = controllers[chatBoxNumber].signal;
 
         try {
             // Retrieve system prompt if set
@@ -257,7 +357,7 @@ async function askQuestion(chatBoxNumber, event = null) {
             // Hide spinner and stop button
             hideSpinner(chatBoxNumber);
             hideStopButton(chatBoxNumber);
-            resetController(chatBoxNumber);
+            delete controllers[chatBoxNumber];
         }
 
         questionInput.value = '';
@@ -267,114 +367,17 @@ async function askQuestion(chatBoxNumber, event = null) {
     }
 }
 
-// Function to handle getting context
-async function getContext(chatBoxNumber) {
-    try {
-        // Show spinner while fetching context
-        showSpinner(chatBoxNumber);
-
-        // Collect selected chatboxes
-        let selectedChatBoxes = [];
-        for (let i = 2; i <= 4; i++) {
-            const checkbox = document.getElementById(`selectChatBox${i}`);
-            if (checkbox && checkbox.checked) {
-                selectedChatBoxes.push(i);
-            }
-        }
-
-        if (selectedChatBoxes.length === 0) {
-            displayMessage(chatBoxNumber, 'System', 'No chat boxes selected.', new Date().toLocaleTimeString());
-            hideSpinner(chatBoxNumber);
-            return;
-        }
-
-        const response = await fetch('/get-context', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ chatBoxNumbers: selectedChatBoxes }),
-        });
-        const data = await response.json();
-        if (data.context && Array.isArray(data.context)) {
-            // Clear existing messages in chatBox1
-            const messagesContainer = document.getElementById(`messages${chatBoxNumber}`);
-            if (messagesContainer) {
-                messagesContainer.innerHTML = '';
-            } else {
-                console.error(`Messages container for chatBox${chatBoxNumber} not found.`);
-            }
-
-            // Update currentContext1
-            currentContext1 = data.context;
-
-            // Reverse the context array to display most recent messages at the top
-            data.context.slice().reverse().forEach(message => {
-                const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
-                displayMessage(chatBoxNumber, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
-            });
-        } else if (data.error) {
-            displayMessage(chatBoxNumber, 'System', `Failed to get context: ${data.error}`, new Date().toLocaleTimeString());
-        }
-    } catch (error) {
-        console.error('Fetch error:', error);
-        displayMessage(chatBoxNumber, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
-    } finally {
-        // Hide spinner after fetching context
-        hideSpinner(chatBoxNumber);
-    }
-}
-
-// Function to stop a request
+/**
+ * Stops an ongoing request in a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
 function stopRequest(chatBoxNumber) {
-    const controller = getController(chatBoxNumber);
+    const controller = controllers[chatBoxNumber];
     if (controller) controller.abort();
 }
 
-// Function to get AbortController signal
-function getControllerSignal(chatBoxNumber) {
-    const controller = getController(chatBoxNumber);
-    return controller ? controller.signal : null;
-}
-
-// Function to set AbortController for a chatBox
-function setController(chatBoxNumber, controller) {
-    switch(chatBoxNumber) {
-        case 1:
-            controller1 = controller;
-            break;
-        case 2:
-            controller2 = controller;
-            break;
-        case 3:
-            controller3 = controller;
-            break;
-        case 4:
-            controller4 = controller;
-            break;
-        default:
-            console.error('Invalid chatBoxNumber:', chatBoxNumber);
-    }
-}
-
-// Function to get AbortController for a chatBox
-function getController(chatBoxNumber) {
-    switch(chatBoxNumber) {
-        case 1:
-            return controller1;
-        case 2:
-            return controller2;
-        case 3:
-            return controller3;
-        case 4:
-            return controller4;
-        default:
-            console.error('Invalid chatBoxNumber:', chatBoxNumber);
-            return null;
-    }
-}
-
-// Function to reset AbortController
-function resetController(chatBoxNumber) {
-    setController(chatBoxNumber, null);
-}
+// Initialize handlers on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    setupDropdownHandlers();
+});

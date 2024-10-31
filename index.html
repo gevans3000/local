@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -22,18 +22,21 @@
                     <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1)">
                     <button onclick="askQuestion(1)">Ask</button>
                     <button id="stopButton1" onclick="stopRequest(1)" style="display: none;">Stop</button>
-                    <button id="getContextButton1" onclick="getContext(1)">Get Context</button>
+                    <button id="getContextButton1" onclick="getContext()">Get Context</button>
                     <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
+                </div>
+                <div class="dropdown-container">
+                    <button class="dropdown-button">Select Chatboxes ▼</button>
+                    <div class="dropdown-content">
+                        <label><input type="checkbox" class="selectAllChatBoxes"> Select All</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="1" checked> ChatBox 1</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                    </div>
                 </div>
                 <div class="messages" id="messages1">
                     <!-- Messages will appear here -->
-                </div>
-                <div class="checkbox-container">
-                    <label><input type="checkbox" id="selectAllChatBoxes"> Select All</label>
-                    <label><input type="checkbox" id="selectChatBox1"> ChatBox 1</label>
-                    <label><input type="checkbox" id="selectChatBox2"> ChatBox 2</label>
-                    <label><input type="checkbox" id="selectChatBox3"> ChatBox 3</label>
-                    <label><input type="checkbox" id="selectChatBox4"> ChatBox 4</label>
                 </div>
             </div>
             <div class="chat-box" id="chatBox2">
@@ -42,9 +45,20 @@
                     <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2)">
                     <button onclick="askQuestion(2)">Ask</button>
                     <button id="stopButton2" onclick="stopRequest(2)" style="display: none;">Stop</button>
+                    <button id="getContextButton2" onclick="getContext()">Get Context</button>
                     <div id="loadingSpinner2" class="spinner" style="display: none;"></div>
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput2" placeholder="Enter custom model name (optional)" rows="2"></textarea>
+                </div>
+                <div class="dropdown-container">
+                    <button class="dropdown-button">Select Chatboxes ▼</button>
+                    <div class="dropdown-content">
+                        <label><input type="checkbox" class="selectAllChatBoxes"> Select All</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="1"> ChatBox 1</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="2" checked> ChatBox 2</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                    </div>
                 </div>
                 <div class="messages" id="messages2">
                     <!-- Messages will appear here -->
@@ -58,7 +72,18 @@
                     <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3)">
                     <button onclick="askQuestion(3)">Ask</button>
                     <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
+                    <button id="getContextButton3" onclick="getContext()">Get Context</button>
                     <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
+                </div>
+                <div class="dropdown-container">
+                    <button class="dropdown-button">Select Chatboxes ▼</button>
+                    <div class="dropdown-content">
+                        <label><input type="checkbox" class="selectAllChatBoxes"> Select All</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="1"> ChatBox 1</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="3" checked> ChatBox 3</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                    </div>
                 </div>
                 <div class="messages" id="messages3">
                     <!-- Messages will appear here -->
@@ -70,9 +95,20 @@
                     <input type="text" id="question4" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(4)">
                     <button onclick="askQuestion(4)">Ask</button>
                     <button id="stopButton4" onclick="stopRequest(4)" style="display: none;">Stop</button>
+                    <button id="getContextButton4" onclick="getContext()">Get Context</button>
                     <div id="loadingSpinner4" class="spinner" style="display: none;"></div>
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput4" placeholder="Enter custom model name (optional)" rows="2"></textarea>
+                </div>
+                <div class="dropdown-container">
+                    <button class="dropdown-button">Select Chatboxes ▼</button>
+                    <div class="dropdown-content">
+                        <label><input type="checkbox" class="selectAllChatBoxes"> Select All</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="1"> ChatBox 1</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
+                        <label><input type="checkbox" class="selectChatBox" data-chatbox="4" checked> ChatBox 4</label>
+                    </div>
                 </div>
                 <div class="messages" id="messages4">
                     <!-- Messages will appear here -->
@@ -80,5 +116,24 @@
             </div>
         </div>
     </div>
+    <script>
+        // Dropdown functionality
+        document.querySelectorAll('.dropdown-button').forEach(button => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const dropdown = button.nextElementSibling;
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            });
+        });
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', (event) => {
+            if (!event.target.matches('.dropdown-button')) {
+                document.querySelectorAll('.dropdown-content').forEach(dropdown => {
+                    dropdown.style.display = 'none';
+                });
+            }
+        });
+    </script>
 </body>
 </html>
