@@ -40,8 +40,11 @@ app.use(express.static(__dirname));
 
 // Configuration constants
 const PORT = process.env.PORT || 3000;
+const MAX_PORT_ATTEMPTS = 5;
 
-// Initialize OpenAI clients with configurable base URLs and API keys
+/**
+ * Initialize OpenAI clients with configurable base URLs and API keys
+ */
 const openaiDefault = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -59,7 +62,7 @@ const MODEL_META = 'meta/llama-3.2-3b-instruct';
 
 // Allowed models, configurable via environment variable
 const ALLOWED_MODELS = process.env.ALLOWED_MODELS
-  ? process.env.ALLOWED_MODELS.split(',')
+  ? process.env.ALLOWED_MODELS.split(',').map(model => model.trim())
   : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META];
 
 // Helper functions to promisify db.run and db.all
@@ -125,10 +128,10 @@ app.post('/ask', async (req, res) => {
     let responseUserIdentifier = selectedModel;
 
     // Validate model
-    //if (!ALLOWED_MODELS.includes(selectedModel)) {
-    //  logger.error(`Invalid model specified: ${selectedModel}`);
-    //  return res.status(400).json({ error: 'Invalid model specified.' });
-    //}
+    if (!ALLOWED_MODELS.includes(selectedModel)) {
+      logger.error(`Invalid model specified: ${selectedModel}`);
+      return res.status(400).json({ error: 'Invalid model specified.' });
+    }
 
     // Select OpenAI client based on model
     if (selectedModel.startsWith('gpt-')) {
@@ -147,9 +150,9 @@ app.post('/ask', async (req, res) => {
     await run(
       `
       INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
-      VALUES (?, 'Human', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?)
     `,
-      [chatBoxNumber, userIdentifier, question, timestamp, tokensUsedUser]
+      [chatBoxNumber, 'Human', userIdentifier, question, timestamp, tokensUsedUser]
     );
 
     logger.info(`User message saved for chatBoxNumber ${chatBoxNumber}`);
@@ -200,9 +203,7 @@ app.post('/ask', async (req, res) => {
     res.json({ answer, usage: response.usage });
   } catch (err) {
     logger.error(`Error in /ask endpoint: ${err.message}`, { stack: err.stack });
-    res
-      .status(500)
-      .json({ error: 'An error occurred while processing your request.' });
+    res.status(500).json({ error: 'An error occurred while processing your request.' });
   }
 });
 
@@ -212,9 +213,7 @@ app.post('/get-context', async (req, res) => {
 
   if (!Array.isArray(chatBoxNumbers) || chatBoxNumbers.length === 0) {
     logger.warn('Invalid chatBoxNumbers provided.');
-    return res
-      .status(400)
-      .json({ error: 'chatBoxNumbers must be a non-empty array.' });
+    return res.status(400).json({ error: 'chatBoxNumbers must be a non-empty array.' });
   }
 
   try {
@@ -224,9 +223,7 @@ app.post('/get-context', async (req, res) => {
     );
     if (!validChatBoxNumbers) {
       logger.warn('Invalid chatBoxNumbers provided.');
-      return res
-        .status(400)
-        .json({ error: 'chatBoxNumbers must contain valid integers.' });
+      return res.status(400).json({ error: 'chatBoxNumbers must contain valid integers.' });
     }
 
     // Fetch context from the database
@@ -246,7 +243,9 @@ app.post('/get-context', async (req, res) => {
   }
 });
 
-// Global error handling middleware
+/**
+ * Global error handling middleware
+ */
 app.use((err, req, res, next) => {
   logger.error('Unhandled error:', {
     message: err.message,
@@ -257,12 +256,35 @@ app.use((err, req, res, next) => {
     ip: req.ip,
   });
 
-  res
-    .status(500)
-    .json({ error: 'An unexpected error occurred. Please try again later.' });
+  res.status(500).json({ error: 'An unexpected error occurred. Please try again later.' });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
-});
+/**
+ * Function to start the server with port handling
+ */
+function startServer(port, attempt = 1) {
+  if (attempt > MAX_PORT_ATTEMPTS) {
+    logger.error(`Failed to start server after ${MAX_PORT_ATTEMPTS} attempts.`);
+    process.exit(1);
+  }
+
+  app.listen(port, () => {
+    logger.info(`Server running on http://localhost:${port}`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.warn(`Port ${port} is in use. Trying port ${port + 1}...`);
+      startServer(port + 1, attempt + 1);
+    } else {
+      logger.error(`Failed to start server: ${err.message}`);
+      process.exit(1);
+    }
+  });
+}
+
+// Address DeprecationWarning for 'punycode' by ensuring dependencies are up-to-date
+// Note: If 'punycode' is used internally by a dependency, consider updating that dependency.
+// Alternatively, install a userland 'punycode' module as a temporary workaround.
+// Example: npm install punycode
+
+// Start the server with initial PORT
+startServer(PORT);
