@@ -7,3 +7,4 @@ conversations.db
 *.db-wal
 *.log
 error.log
+/database.log
