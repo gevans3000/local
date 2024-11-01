@@ -86,7 +86,7 @@ function getMessageClass(user) {
 function setElementVisibility(elementId, visible) {
     const element = document.getElementById(elementId);
     if (element) {
-        element.style.display = visible ? 'inline-block' : 'none';
+        element.style.display = visible ? 'block' : 'none';
     } else {
         console.warn(`Element with ID ${elementId} not found.`);
     }
@@ -151,6 +151,19 @@ function initializeUI() {
                 event.stopPropagation();
             });
         }
+
+        // Handle "Get Context" button functionality
+        const getContextButton = chatBox.querySelector('.get-context-button');
+        if (getContextButton) {
+            getContextButton.addEventListener('click', () => {
+                const chatBoxNumber = getChatBoxNumber(chatBox);
+                if (chatBoxNumber !== null) {
+                    handleGetContext(chatBoxNumber);
+                } else {
+                    console.error('Unable to determine chatBoxNumber.');
+                }
+            });
+        }
     });
 
     // Close all dropdowns when clicking outside
@@ -159,6 +172,113 @@ function initializeUI() {
             dropdown.classList.remove('show');
         });
     });
+}
+
+/**
+ * Retrieves the chatbox number from the chatbox element.
+ *
+ * @param {HTMLElement} chatBox - The chatbox element.
+ * @returns {number|null} - The chatbox number.
+ */
+function getChatBoxNumber(chatBox) {
+    const id = chatBox.id;
+    const match = id.match(/chatBox(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Handles the "Get Context" button click event for a specific chatbox.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function handleGetContext(chatBoxNumber) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+    if (!chatBox) {
+        console.error(`ChatBox with ID chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
+    const dropdownContent = chatBox.querySelector('.dropdown-content');
+    if (!dropdownContent) {
+        console.error(`Dropdown content for chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
+    // Get all selected chatboxes
+    const selectedChatBoxes = Array.from(dropdownContent.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(cb => parseInt(cb.dataset.chatbox, 10))
+        .filter(num => !isNaN(num));
+
+    if (selectedChatBoxes.length === 0) {
+        alert('Please select at least one chatbox to get context.');
+        return;
+    }
+
+    // Show spinner
+    showSpinner(chatBoxNumber);
+
+    // Fetch context from selected chatboxes
+    fetchContext(selectedChatBoxes)
+        .then(contextData => {
+            if (!Array.isArray(contextData)) {
+                throw new Error('Invalid context data received.');
+            }
+
+            // Clear current messages
+            const messagesContainer = chatBox.querySelector('.messages');
+            messagesContainer.innerHTML = '';
+
+            // Populate messages from selected chatboxes
+            contextData.forEach(message => {
+                displayMessage(chatBoxNumber, message.user, message.message, message.timestamp, message.tokens, isMarkdownUser(message.user));
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching context:', error);
+            displayMessage(chatBoxNumber, 'System', 'Failed to retrieve context.', new Date().toLocaleTimeString());
+        })
+        .finally(() => {
+            // Hide spinner
+            hideSpinner(chatBoxNumber);
+        });
+}
+
+/**
+ * Determines if the user is using Markdown based on their identifier.
+ *
+ * @param {string} user - The user identifier.
+ * @returns {boolean} - True if Markdown should be used, else false.
+ */
+function isMarkdownUser(user) {
+    return user.startsWith('gpt-') || user.startsWith('nvidia/') || user.startsWith('meta/');
+}
+
+/**
+ * Fetches context data from the server for the specified chatboxes.
+ *
+ * @param {number[]} chatBoxNumbers - Array of chatbox numbers to fetch context from.
+ * @returns {Promise<Array>} - Promise resolving to an array of message objects.
+ */
+async function fetchContext(chatBoxNumbers) {
+    try {
+        const response = await fetch('/get-context', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ chatBoxNumbers }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch context.');
+        }
+
+        const data = await response.json();
+        return data.context;
+    } catch (error) {
+        throw error;
+    }
 }
 
 // Initialize UI on DOMContentLoaded
