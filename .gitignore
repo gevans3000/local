@@ -8,3 +8,4 @@ conversations.db
 *.log
 error.log
 /database.log
+/d
