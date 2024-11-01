@@ -230,7 +230,14 @@ function handleGetContext(chatBoxNumber) {
 
             // Populate messages from selected chatboxes
             contextData.forEach(message => {
-                displayMessage(chatBoxNumber, message.user, message.message, message.timestamp, message.tokens, isMarkdownUser(message.user));
+                displayMessage(
+                    chatBoxNumber,
+                    message.user,
+                    message.message,
+                    message.timestamp,
+                    message.tokens,
+                    isMarkdownUser(message.user)
+                );
             });
         })
         .catch(error => {
@@ -275,6 +282,10 @@ async function fetchContext(chatBoxNumbers) {
         }
 
         const data = await response.json();
+        if (!data || !Array.isArray(data.context)) {
+            throw new Error('Invalid context data format.');
+        }
+
         return data.context;
     } catch (error) {
         throw error;
