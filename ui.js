@@ -86,7 +86,7 @@ function getMessageClass(user) {
 function setElementVisibility(elementId, visible) {
     const element = document.getElementById(elementId);
     if (element) {
-        element.style.display = visible ? 'block' : 'none';
+        element.classList.toggle('hidden', !visible);
     } else {
         console.warn(`Element with ID ${elementId} not found.`);
     }
@@ -205,7 +205,7 @@ function handleGetContext(chatBoxNumber) {
     }
 
     // Get all selected chatboxes
-    const selectedChatBoxes = Array.from(dropdownContent.querySelectorAll('input[type="checkbox"]:checked'))
+    const selectedChatBoxes = Array.from(dropdownContent.querySelectorAll('input.selectChatBox:checked'))
         .map(cb => parseInt(cb.dataset.chatbox, 10))
         .filter(num => !isNaN(num));
 
