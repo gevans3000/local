@@ -39,8 +39,13 @@ const logger = winston.createLogger({
 app.use(express.static(__dirname));
 
 // Configuration constants
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 const MAX_PORT_ATTEMPTS = 5;
+
+// Function to check if port is valid
+function isValidPort(port) {
+  return Number.isInteger(port) && port >= 0 && port < 65536;
+}
 
 /**
  * Initialize OpenAI clients with configurable base URLs and API keys
@@ -263,6 +268,11 @@ app.use((err, req, res, next) => {
  * Function to start the server with port handling
  */
 function startServer(port, attempt = 1) {
+  if (!isValidPort(port)) {
+    logger.error(`Invalid port number: ${port}. Must be >= 0 and < 65536.`);
+    process.exit(1);
+  }
+
   if (attempt > MAX_PORT_ATTEMPTS) {
     logger.error(`Failed to start server after ${MAX_PORT_ATTEMPTS} attempts.`);
     process.exit(1);
@@ -272,19 +282,19 @@ function startServer(port, attempt = 1) {
     logger.info(`Server running on http://localhost:${port}`);
   }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      logger.warn(`Port ${port} is in use. Trying port ${port + 1}...`);
-      startServer(port + 1, attempt + 1);
+      const nextPort = port + 1;
+      if (!isValidPort(nextPort)) {
+        logger.error(`Next port (${nextPort}) is invalid. Cannot proceed further.`);
+        process.exit(1);
+      }
+      logger.warn(`Port ${port} is in use. Trying port ${nextPort}...`);
+      startServer(nextPort, attempt + 1);
     } else {
       logger.error(`Failed to start server: ${err.message}`);
       process.exit(1);
     }
   });
 }
-
-// Address DeprecationWarning for 'punycode' by ensuring dependencies are up-to-date
-// Note: If 'punycode' is used internally by a dependency, consider updating that dependency.
-// Alternatively, install a userland 'punycode' module as a temporary workaround.
-// Example: npm install punycode
 
 // Start the server with initial PORT
 startServer(PORT);
