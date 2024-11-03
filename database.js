@@ -71,12 +71,106 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
                     logger.info('Conversations table is ready.');
                 }
             });
+
+            // Create index on chatBoxNumber for faster queries
+            db.run(`
+                CREATE INDEX IF NOT EXISTS idx_chatBoxNumber ON conversations(chatBoxNumber)
+            `, (err) => {
+                if (err) {
+                    logger.error(`Error creating index on chatBoxNumber: ${err.message}`);
+                } else {
+                    logger.info('Index on chatBoxNumber is ready.');
+                }
+            });
         });
     }
 });
 
+// In-memory cache for getMessages
+const messageCache = new Map();
+
 /**
- * Closes the database connection gracefully.
+ * Generates a cache key based on chatBoxNumbers
+ * @param {number[]} chatBoxNumbers 
+ * @returns {string}
+ */
+function generateCacheKey(chatBoxNumbers) {
+    return chatBoxNumbers.slice().sort((a, b) => a - b).join(',');
+}
+
+/**
+ * Adds a message to the database and invalidates relevant cache entries
+ * @param {number} chatBoxNumber 
+ * @param {string} user 
+ * @param {string} message 
+ * @param {string} timestamp 
+ * @param {number} tokens 
+ * @param {string} modelName 
+ * @returns {Promise<number>}
+ */
+function addMessage(chatBoxNumber, user, message, timestamp, tokens, modelName) {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`
+            INSERT INTO conversations (chatBoxNumber, user, message, timestamp, tokens, modelName)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        stmt.run([chatBoxNumber, user, message, timestamp, tokens, modelName], function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                // Invalidate cache for this chatBoxNumber
+                messageCache.forEach((_, key) => {
+                    const numbers = key.split(',').map(Number);
+                    if (numbers.includes(chatBoxNumber)) {
+                        messageCache.delete(key);
+                        logger.info(`Cache invalidated for key: ${key}`);
+                    }
+                });
+                resolve(this.lastID);
+            }
+        });
+        stmt.finalize();
+    });
+}
+
+/**
+ * Retrieves messages from the database for given chatBoxNumbers with caching
+ * @param {number[]} chatBoxNumbers 
+ * @returns {Promise<Array>}
+ */
+function getMessages(chatBoxNumbers) {
+    return new Promise((resolve, reject) => {
+        if (chatBoxNumbers.length === 0) {
+            resolve([]);
+            return;
+        }
+
+        const cacheKey = generateCacheKey(chatBoxNumbers);
+        if (messageCache.has(cacheKey)) {
+            logger.info(`Cache hit for chatBoxNumbers: ${cacheKey}`);
+            return resolve(messageCache.get(cacheKey));
+        }
+
+        const placeholders = chatBoxNumbers.map(() => '?').join(',');
+        const query = `
+            SELECT chatBoxNumber, user, message, timestamp, tokens, modelName
+            FROM conversations
+            WHERE chatBoxNumber IN (${placeholders})
+        `;
+        db.all(query, chatBoxNumbers, (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                messageCache.set(cacheKey, rows);
+                logger.info(`Cache set for chatBoxNumbers: ${cacheKey}`);
+                resolve(rows);
+            }
+        });
+    });
+}
+
+/**
+ * Closes the database connection gracefully and clears the cache.
  */
 function closeDatabase() {
     db.close((err) => {
@@ -86,6 +180,8 @@ function closeDatabase() {
             logger.info('Database connection closed.');
         }
     });
+    messageCache.clear();
+    logger.info('Message cache cleared.');
 }
 
 // Handle process exit to close the database connection gracefully
@@ -94,4 +190,9 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
+// Attach addMessage and getMessages to the db instance
+db.addMessage = addMessage;
+db.getMessages = getMessages;
+
+// Export the db instance
 module.exports = db;
