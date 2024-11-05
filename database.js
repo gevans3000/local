@@ -57,12 +57,12 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
             db.run(`
                 CREATE TABLE IF NOT EXISTS conversations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chatBoxNumber INTEGER NOT NULL,
+                    chatBoxNumber INTEGER NOT NULL CHECK(chatBoxNumber > 0),
                     modelName TEXT NOT NULL DEFAULT 'Human',
                     user TEXT NOT NULL,
                     message TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
-                    tokens INTEGER
+                    tokens INTEGER CHECK(tokens >= 0)
                 )
             `, (err) => {
                 if (err) {
@@ -80,6 +80,17 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
                     logger.error(`Error creating index on chatBoxNumber: ${err.message}`);
                 } else {
                     logger.info('Index on chatBoxNumber is ready.');
+                }
+            });
+
+            // Add index on timestamp for faster queries based on timestamp
+            db.run(`
+                CREATE INDEX IF NOT EXISTS idx_timestamp ON conversations(timestamp)
+            `, (err) => {
+                if (err) {
+                    logger.error(`Error creating index on timestamp: ${err.message}`);
+                } else {
+                    logger.info('Index on timestamp is ready.');
                 }
             });
         });

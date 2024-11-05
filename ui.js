@@ -172,6 +172,9 @@ function initializeUI() {
             dropdown.classList.remove('show');
         });
     });
+
+    // Setup dropdown checkbox handlers
+    setupDropdownHandlers();
 }
 
 /**
@@ -290,6 +293,41 @@ async function fetchContext(chatBoxNumbers) {
     } catch (error) {
         throw error;
     }
+}
+
+/**
+ * Sets up event handlers for the dropdown checkboxes.
+ */
+function setupDropdownHandlers() {
+    const dropdownContainers = document.querySelectorAll('.dropdown-container');
+
+    dropdownContainers.forEach(dropdown => {
+        const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+        if (checkboxes.length === 0) {
+            console.error('No checkboxes found in dropdown.');
+            return;
+        }
+
+        const selectAllCheckbox = dropdown.querySelector('.selectAllChatBoxes');
+        const chatBoxCheckboxes = Array.from(dropdown.querySelectorAll('.selectChatBox'));
+
+        // Event listener for "Select All"
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', () => {
+                chatBoxCheckboxes.forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                });
+            });
+        }
+
+        // Event listeners for individual checkboxes
+        chatBoxCheckboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const allChecked = chatBoxCheckboxes.every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+            });
+        });
+    });
 }
 
 // Initialize UI on DOMContentLoaded

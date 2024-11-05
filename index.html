@@ -19,10 +19,10 @@
             <div class="chat-box" id="chatBox1">
                 <h1>Chat with OpenAI GPT-4o-mini</h1>
                 <div id="inputArea1">
-                    <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1)">
+                    <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1, event)">
                     <button onclick="askQuestion(1)">Ask</button>
                     <button id="stopButton1" onclick="stopRequest(1)" style="display: none;">Stop</button>
-                    <button id="getContextButton1" onclick="getContext()">Get Context</button>
+                    <button id="getContextButton1" onclick="getContext(1)">Get Context</button>
                     <div id="loadingSpinner1" class="spinner" style="display: none;"></div>
                 </div>
                 <div class="dropdown-container">
@@ -42,10 +42,10 @@
             <div class="chat-box" id="chatBox2">
                 <h1>Chat with OpenAI GPT-4o-mini-2024-07-18</h1>
                 <div id="inputArea2">
-                    <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2)">
+                    <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2, event)">
                     <button onclick="askQuestion(2)">Ask</button>
                     <button id="stopButton2" onclick="stopRequest(2)" style="display: none;">Stop</button>
-                    <button id="getContextButton2" onclick="getContext()">Get Context</button>
+                    <button id="getContextButton2" onclick="getContext(2)">Get Context</button>
                     <div id="loadingSpinner2" class="spinner" style="display: none;"></div>
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput2" placeholder="Enter custom model name (optional)" rows="2"></textarea>
@@ -69,10 +69,10 @@
             <div class="chat-box" id="chatBox3">
                 <h1>Chat with OpenAI NVIDIA LLM</h1>
                 <div id="inputArea3">
-                    <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3)">
+                    <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3, event)">
                     <button onclick="askQuestion(3)">Ask</button>
                     <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
-                    <button id="getContextButton3" onclick="getContext()">Get Context</button>
+                    <button id="getContextButton3" onclick="getContext(3)">Get Context</button>
                     <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
                 </div>
                 <div class="dropdown-container">
@@ -92,10 +92,10 @@
             <div class="chat-box" id="chatBox4">
                 <h1>Chat with OpenAI NVIDIA LLM</h1>
                 <div id="inputArea4">
-                    <input type="text" id="question4" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(4)">
+                    <input type="text" id="question4" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(4, event)">
                     <button onclick="askQuestion(4)">Ask</button>
                     <button id="stopButton4" onclick="stopRequest(4)" style="display: none;">Stop</button>
-                    <button id="getContextButton4" onclick="getContext()">Get Context</button>
+                    <button id="getContextButton4" onclick="getContext(4)">Get Context</button>
                     <div id="loadingSpinner4" class="spinner" style="display: none;"></div>
                     <!-- Textarea for custom model input -->
                     <textarea id="modelInput4" placeholder="Enter custom model name (optional)" rows="2"></textarea>

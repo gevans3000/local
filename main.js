@@ -135,134 +135,105 @@ function setupDropdownHandlers() {
 
 /**
  * Handles the "Get Context" button click.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
  */
-function getContext() {
-    const event = window.event;
-    if (!event) {
-        console.error('Event not found.');
-        return;
-    }
-
-    const button = event.target || event.srcElement;
-    const chatBox = button.closest('.chat-box');
+async function getContext(chatBoxNumber) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
     if (!chatBox) {
-        console.error('Chat box container not found.');
+        console.error(`ChatBox with ID chatBox${chatBoxNumber} not found.`);
         return;
     }
 
     const dropdownContent = chatBox.querySelector('.dropdown-content');
     if (!dropdownContent) {
-        console.error('Dropdown content not found.');
+        console.error(`Dropdown content for chatBox${chatBoxNumber} not found.`);
         return;
     }
 
-    const checkboxes = dropdownContent.querySelectorAll('input[type="checkbox"]');
-    if (checkboxes.length === 0) {
-        console.error('No checkboxes found in dropdown.');
-        return;
-    }
-
-    const selectAllCheckbox = dropdownContent.querySelector('.selectAllChatBoxes');
-    const chatBoxCheckboxes = Array.from(dropdownContent.querySelectorAll('.selectChatBox'));
-
-    let selectedChatBoxes = [];
-
-    if (selectAllCheckbox && selectAllCheckbox.checked) {
-        selectedChatBoxes = [1, 2, 3, 4];
-    } else {
-        chatBoxCheckboxes.forEach(cb => {
-            if (cb.checked) {
-                const num = parseInt(cb.dataset.chatbox);
-                if (!isNaN(num)) selectedChatBoxes.push(num);
-            }
-        });
-    }
+    // Get all selected chatboxes
+    const selectedChatBoxes = Array.from(dropdownContent.querySelectorAll('input.selectChatBox:checked'))
+        .map(cb => parseInt(cb.dataset.chatbox, 10))
+        .filter(num => !isNaN(num));
 
     if (selectedChatBoxes.length === 0) {
         alert('Please select at least one chatbox to get context.');
         return;
     }
 
-    // Clear all messages in the current chatBox
-    const currentMessages = chatBox.querySelector('.messages');
-    if (currentMessages) {
-        currentMessages.innerHTML = '';
-    }
+    // Show spinner
+    showSpinner(chatBoxNumber);
 
-    // Fetch and update context for selected chatboxes
-    fetchContext(selectedChatBoxes);
+    try {
+        const contextData = await fetchContext(selectedChatBoxes);
+        if (!Array.isArray(contextData.context)) {
+            throw new Error('Invalid context data received.');
+        }
+
+        // Clear current messages
+        const messagesContainer = chatBox.querySelector('.messages');
+        messagesContainer.innerHTML = '';
+
+        // Populate messages from selected chatboxes
+        contextData.context.forEach(message => {
+            displayMessage(
+                chatBoxNumber,
+                message.user,
+                message.message,
+                message.timestamp,
+                message.tokens,
+                isMarkdownUser(message.user)
+            );
+        });
+    } catch (error) {
+        console.error('Error fetching context:', error);
+        displayMessage(chatBoxNumber, 'System', 'Failed to retrieve context.', new Date().toLocaleTimeString());
+    } finally {
+        // Hide spinner
+        hideSpinner(chatBoxNumber);
+    }
 }
 
 /**
- * Fetches context from the server for the specified chat boxes.
+ * Determines if the user is using Markdown based on their identifier.
  *
- * @param {number[]} chatBoxNumbers - Array of chat box numbers to fetch context for.
+ * @param {string} user - The user identifier.
+ * @returns {boolean} - True if Markdown should be used, else false.
+ */
+function isMarkdownUser(user) {
+    return user.startsWith('gpt-') || user.startsWith('nvidia/') || user.startsWith('meta/');
+}
+
+/**
+ * Fetches context data from the server for the specified chatboxes.
+ *
+ * @param {number[]} chatBoxNumbers - Array of chatbox numbers to fetch context from.
+ * @returns {Promise<object>} - Promise resolving to the context data.
  */
 async function fetchContext(chatBoxNumbers) {
     try {
-        // Show spinner for selected chatboxes
-        chatBoxNumbers.forEach(number => {
-            showSpinner(number);
+        const response = await fetch('/get-context', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ chatBoxNumbers }),
         });
 
-        const response = await sendGetContextRequest(chatBoxNumbers);
-
-        if (response.context && Array.isArray(response.context)) {
-            // Clear and update messages for each selected chatbox
-            chatBoxNumbers.forEach(number => {
-                const messagesContainer = document.getElementById(`messages${number}`);
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                }
-
-                // Filter context for the specific chatbox
-                const contextForBox = response.context.filter(msg => msg.chatBoxNumber === number);
-
-                contextForBox.slice().reverse().forEach(message => {
-                    const isMarkdown = message.user.startsWith('gpt-') || message.user.startsWith('nvidia/') || message.user.startsWith('meta/');
-                    displayMessage(number, message.user, message.message, message.timestamp, message.tokens, isMarkdown);
-                });
-            });
-        } else if (response.error) {
-            chatBoxNumbers.forEach(number => {
-                displayMessage(number, 'System', `Failed to get context: ${response.error}`, new Date().toLocaleTimeString());
-            });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch context.');
         }
+
+        const data = await response.json();
+        if (!data || !Array.isArray(data.context)) {
+            throw new Error('Invalid context data format.');
+        }
+
+        return data;
     } catch (error) {
-        console.error('Error fetching context:', error);
-        chatBoxNumbers.forEach(number => {
-            displayMessage(number, 'System', 'Error contacting the server.', new Date().toLocaleTimeString());
-        });
-    } finally {
-        // Hide spinner for selected chatboxes
-        chatBoxNumbers.forEach(number => {
-            hideSpinner(number);
-        });
+        throw error;
     }
-}
-
-/**
- * Sends a request to the server to get context for the specified chat boxes.
- *
- * @param {number[]} chatBoxNumbers - Array of chat box numbers to get context for.
- * @returns {Promise<object>} - The server response.
- * @throws {Error} - Throws an error if the request fails.
- */
-async function sendGetContextRequest(chatBoxNumbers) {
-    const response = await fetch('/get-context', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatBoxNumbers: chatBoxNumbers }),
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch context.');
-    }
-
-    return await response.json();
 }
 
 /**
