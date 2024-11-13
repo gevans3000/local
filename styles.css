@@ -291,6 +291,31 @@ textarea {
     display: block;
 }
 
+/* Msg Count Styles */
+.msg-count-container {
+    margin-top: 10px;
+}
+
+.msg-count-container label {
+    display: flex;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.msg-count-input {
+    width: 50px;
+    margin-left: 5px;
+    padding: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.msg-count-input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
 /* Responsive Styles */
 @media (max-width: 768px) {
     .chat-box {
@@ -317,5 +342,9 @@ textarea {
     textarea {
         font-size: 0.9rem;
         padding: 10px 12px;
+    }
+
+    .msg-count-input {
+        width: 40px;
     }
 }

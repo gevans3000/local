@@ -23,6 +23,15 @@ function displayMessage(chatBoxNumber, user, content, timestamp, tokens = null, 
         return;
     }
 
+    const msgCountInput = chatBox.querySelector('.msg-count-input');
+    let msgCount = 10; // Default value
+    if (msgCountInput) {
+        const value = parseInt(msgCountInput.value, 10);
+        if (!isNaN(value) && value >= 1 && value <= 99) {
+            msgCount = value;
+        }
+    }
+
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', getMessageClass(user));
 
@@ -59,6 +68,14 @@ function displayMessage(chatBoxNumber, user, content, timestamp, tokens = null, 
 
     // Insert the message at the top of the messages container
     messagesContainer.insertBefore(messageDiv, messagesContainer.firstChild);
+
+    // Maintain only the last N messages
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    if (allMessages.length > msgCount) {
+        for (let i = msgCount; i < allMessages.length; i++) {
+            messagesContainer.removeChild(allMessages[i]);
+        }
+    }
 
     // Optionally, scroll to the latest message
     messagesContainer.scrollTop = 0;
@@ -164,6 +181,9 @@ function initializeUI() {
                 }
             });
         }
+
+        // Add "Msg Count" input box
+        addMsgCountInput(chatBox);
     });
 
     // Close all dropdowns when clicking outside
@@ -175,6 +195,94 @@ function initializeUI() {
 
     // Setup dropdown checkbox handlers
     setupDropdownHandlers();
+}
+
+/**
+ * Adds a "Msg Count" input box to the dropdown content of a chat box.
+ *
+ * @param {HTMLElement} chatBox - The chat box element.
+ */
+function addMsgCountInput(chatBox) {
+    const dropdownContent = chatBox.querySelector('.dropdown-content');
+    if (!dropdownContent) {
+        console.error('Dropdown content not found for chat box.');
+        return;
+    }
+
+    // Create the container for Msg Count
+    const msgCountContainer = document.createElement('div');
+    msgCountContainer.classList.add('msg-count-container');
+    msgCountContainer.style.marginTop = '10px';
+
+    // Create the label
+    const msgCountLabel = document.createElement('label');
+    msgCountLabel.textContent = 'Msg Count: ';
+    msgCountLabel.setAttribute('for', `msgCount${getChatBoxNumber(chatBox)}`);
+
+    // Create the input
+    const msgCountInput = document.createElement('input');
+    msgCountInput.type = 'number';
+    msgCountInput.id = `msgCount${getChatBoxNumber(chatBox)}`;
+    msgCountInput.classList.add('msg-count-input');
+    msgCountInput.min = '1';
+    msgCountInput.max = '99';
+    msgCountInput.value = '10';
+    msgCountInput.style.width = '50px';
+    msgCountInput.style.marginLeft = '5px';
+
+    // Add event listener to handle changes
+    msgCountInput.addEventListener('change', () => {
+        let value = parseInt(msgCountInput.value, 10);
+        if (isNaN(value) || value < 1) {
+            value = 1;
+        } else if (value > 99) {
+            value = 99;
+        }
+        msgCountInput.value = value;
+        updateMessageDisplay(getChatBoxNumber(chatBox));
+    });
+
+    // Append elements
+    msgCountLabel.appendChild(msgCountInput);
+    msgCountContainer.appendChild(msgCountLabel);
+    dropdownContent.appendChild(msgCountContainer);
+}
+
+/**
+ * Updates the message display based on the Msg Count value.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function updateMessageDisplay(chatBoxNumber) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+    if (!chatBox) {
+        console.error(`ChatBox with ID chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
+    const messagesContainer = chatBox.querySelector('.messages');
+    const msgCountInput = chatBox.querySelector('.msg-count-input');
+    let msgCount = 10; // Default value
+    if (msgCountInput) {
+        const value = parseInt(msgCountInput.value, 10);
+        if (!isNaN(value) && value >= 1 && value <= 99) {
+            msgCount = value;
+        }
+    }
+
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    if (allMessages.length > msgCount) {
+        for (let i = msgCount; i < allMessages.length; i++) {
+            allMessages[i].style.display = 'none';
+        }
+    }
+
+    // Show the last N messages
+    for (let i = 0; i < allMessages.length; i++) {
+        if (i < msgCount) {
+            allMessages[i].style.display = 'block';
+        }
+    }
 }
 
 /**
@@ -242,6 +350,9 @@ function handleGetContext(chatBoxNumber) {
                     isMarkdownUser(message.user)
                 );
             });
+
+            // Update message display based on Msg Count
+            updateMessageDisplay(chatBoxNumber);
         })
         .catch(error => {
             console.error('Error fetching context:', error);

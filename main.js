@@ -75,6 +75,15 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
         return;
     }
 
+    const msgCountInput = document.querySelector(`#chatBox${chatBoxNumber} .msg-count-input`);
+    let msgCount = 10; // Default value
+    if (msgCountInput) {
+        const value = parseInt(msgCountInput.value, 10);
+        if (!isNaN(value) && value >= 1 && value <= 99) {
+            msgCount = value;
+        }
+    }
+
     const messageElement = document.createElement('div');
     messageElement.classList.add('message', user.startsWith('You') ? 'user-message' : 'assistant-message');
 
@@ -96,6 +105,14 @@ function displayMessage(chatBoxNumber, user, message, timestamp, tokens = null, 
 
     // Insert the message at the top of the messages container
     messagesContainer.insertBefore(messageElement, messagesContainer.firstChild);
+
+    // Maintain only the last N messages
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    if (allMessages.length > msgCount) {
+        for (let i = msgCount; i < allMessages.length; i++) {
+            messagesContainer.removeChild(allMessages[i]);
+        }
+    }
 }
 
 /**
@@ -161,6 +178,16 @@ async function getContext(chatBoxNumber) {
         return;
     }
 
+    // Get Msg Count value
+    const msgCountInput = chatBox.querySelector('.msg-count-input');
+    let msgCount = 10; // Default value
+    if (msgCountInput) {
+        const value = parseInt(msgCountInput.value, 10);
+        if (!isNaN(value) && value >= 1 && value <= 99) {
+            msgCount = value;
+        }
+    }
+
     // Show spinner
     showSpinner(chatBoxNumber);
 
@@ -170,12 +197,18 @@ async function getContext(chatBoxNumber) {
             throw new Error('Invalid context data received.');
         }
 
+        // Sort messages by timestamp ascending
+        contextData.context.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Slice to last N messages
+        const limitedContext = contextData.context.slice(-msgCount);
+
         // Clear current messages
         const messagesContainer = chatBox.querySelector('.messages');
         messagesContainer.innerHTML = '';
 
-        // Populate messages from selected chatboxes
-        contextData.context.forEach(message => {
+        // Populate messages from limited context
+        limitedContext.forEach(message => {
             displayMessage(
                 chatBoxNumber,
                 message.user,
@@ -208,7 +241,8 @@ function isMarkdownUser(user) {
  * Fetches context data from the server for the specified chatboxes.
  *
  * @param {number[]} chatBoxNumbers - Array of chatbox numbers to fetch context from.
- * @returns {Promise<object>} - Promise resolving to the context data.
+ * @returns {Promise<object>} - The context data from the server.
+ * @throws {Error} - Throws an error if the request fails.
  */
 async function fetchContext(chatBoxNumbers) {
     try {
@@ -292,12 +326,50 @@ async function askQuestion(chatBoxNumber, event = null) {
 
             // Prepare context
             let context = [];
-            if (chatBoxNumber === 1 && currentContext1.length > 0) {
-                context = [...currentContext1];
+            if (systemPrompts[chatBoxNumber]) {
+                context.push({ user: `System`, message: systemPrompts[chatBoxNumber] });
             }
 
-            // Include system prompt in context
-            if (systemPrompts[chatBoxNumber]) {
+            // Get Msg Count value
+            const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+            const msgCountInput = chatBox.querySelector('.msg-count-input');
+            let msgCount = 10; // Default value
+            if (msgCountInput) {
+                const value = parseInt(msgCountInput.value, 10);
+                if (!isNaN(value) && value >= 1 && value <= 99) {
+                    msgCount = value;
+                }
+            }
+
+            // Fetch context from selected chatboxes
+            const dropdownContent = chatBox.querySelector('.dropdown-content');
+            const selectedChatBoxes = Array.from(dropdownContent.querySelectorAll('input.selectChatBox:checked'))
+                .map(cb => parseInt(cb.dataset.chatbox, 10))
+                .filter(num => !isNaN(num));
+
+            if (selectedChatBoxes.length > 0) {
+                const contextData = await fetchContext(selectedChatBoxes);
+                if (Array.isArray(contextData.context)) {
+                    // Sort messages by timestamp ascending
+                    contextData.context.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                    // Slice to last N messages
+                    const limitedContext = contextData.context.slice(-msgCount);
+
+                    limitedContext.forEach(msg => {
+                        if (msg.user.startsWith('You')) {
+                            context.push({ user: msg.user, message: msg.message });
+                        } else if (msg.user === 'System') {
+                            context.push({ user: 'System', message: msg.message });
+                        } else {
+                            context.push({ user: msg.user, message: msg.message });
+                        }
+                    });
+                }
+            }
+
+            // Include system prompt in context if not already included
+            if (systemPrompts[chatBoxNumber] && !context.some(msg => msg.user === 'System')) {
                 context.unshift({ user: `System`, message: systemPrompts[chatBoxNumber] });
             }
 
@@ -352,3 +424,177 @@ function stopRequest(chatBoxNumber) {
 document.addEventListener('DOMContentLoaded', () => {
     setupDropdownHandlers();
 });
+
+/**
+ * Initializes the UI by setting up necessary event listeners and configurations.
+ */
+function initializeUI() {
+    // Setup dropdown functionality for each chat box
+    document.querySelectorAll('.chat-box').forEach(chatBox => {
+        const dropdownButton = chatBox.querySelector('.dropdown-button');
+        const dropdownContent = chatBox.querySelector('.dropdown-content');
+
+        if (dropdownButton && dropdownContent) {
+            // Toggle dropdown visibility on button click
+            dropdownButton.addEventListener('click', (event) => {
+                event.stopPropagation(); // Prevent the event from bubbling up to the window
+                const isVisible = dropdownContent.classList.contains('show');
+                // Toggle the 'show' class
+                dropdownContent.classList.toggle('show', !isVisible);
+            });
+
+            // Prevent clicks inside the dropdown from closing it
+            dropdownContent.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
+
+        // Handle "Get Context" button functionality
+        const getContextButton = chatBox.querySelector('.get-context-button');
+        if (getContextButton) {
+            getContextButton.addEventListener('click', () => {
+                const chatBoxNumber = getChatBoxNumber(chatBox);
+                if (chatBoxNumber !== null) {
+                    getContext(chatBoxNumber);
+                } else {
+                    console.error('Unable to determine chatBoxNumber.');
+                }
+            });
+        }
+
+        // Add "Msg Count" input box
+        addMsgCountInput(chatBox);
+    });
+
+    // Close all dropdowns when clicking outside
+    window.addEventListener('click', () => {
+        document.querySelectorAll('.dropdown-content.show').forEach(dropdown => {
+            dropdown.classList.remove('show');
+        });
+    });
+
+    // Setup dropdown checkbox handlers
+    setupDropdownHandlers();
+}
+
+/**
+ * Adds a "Msg Count" input box to the dropdown content of a chat box.
+ *
+ * @param {HTMLElement} chatBox - The chat box element.
+ */
+function addMsgCountInput(chatBox) {
+    const dropdownContent = chatBox.querySelector('.dropdown-content');
+    if (!dropdownContent) {
+        console.error('Dropdown content not found for chat box.');
+        return;
+    }
+
+    // Create the container for Msg Count
+    const msgCountContainer = document.createElement('div');
+    msgCountContainer.classList.add('msg-count-container');
+    msgCountContainer.style.marginTop = '10px';
+
+    // Create the label
+    const msgCountLabel = document.createElement('label');
+    msgCountLabel.textContent = 'Msg Count: ';
+    msgCountLabel.setAttribute('for', `msgCount${getChatBoxNumber(chatBox)}`);
+
+    // Create the input
+    const msgCountInput = document.createElement('input');
+    msgCountInput.type = 'number';
+    msgCountInput.id = `msgCount${getChatBoxNumber(chatBox)}`;
+    msgCountInput.classList.add('msg-count-input');
+    msgCountInput.min = '1';
+    msgCountInput.max = '99';
+    msgCountInput.value = '10';
+    msgCountInput.style.width = '50px';
+    msgCountInput.style.marginLeft = '5px';
+
+    // Add event listener to handle changes
+    msgCountInput.addEventListener('change', () => {
+        let value = parseInt(msgCountInput.value, 10);
+        if (isNaN(value) || value < 1) {
+            value = 1;
+        } else if (value > 99) {
+            value = 99;
+        }
+        msgCountInput.value = value;
+        updateMessageDisplay(getChatBoxNumber(chatBox));
+    });
+
+    // Append elements
+    msgCountLabel.appendChild(msgCountInput);
+    msgCountContainer.appendChild(msgCountLabel);
+    dropdownContent.appendChild(msgCountContainer);
+}
+
+/**
+ * Updates the message display based on the Msg Count value.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function updateMessageDisplay(chatBoxNumber) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+    if (!chatBox) {
+        console.error(`ChatBox with ID chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+
+    const messagesContainer = chatBox.querySelector('.messages');
+    const msgCountInput = chatBox.querySelector('.msg-count-input');
+    let msgCount = 10; // Default value
+    if (msgCountInput) {
+        const value = parseInt(msgCountInput.value, 10);
+        if (!isNaN(value) && value >= 1 && value <= 99) {
+            msgCount = value;
+        }
+    }
+
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    if (allMessages.length > msgCount) {
+        for (let i = msgCount; i < allMessages.length; i++) {
+            allMessages[i].style.display = 'none';
+        }
+    }
+
+    // Show the last N messages
+    for (let i = 0; i < allMessages.length; i++) {
+        if (i < msgCount) {
+            allMessages[i].style.display = 'block';
+        }
+    }
+}
+
+/**
+ * Retrieves the chatbox number from the chatbox element.
+ *
+ * @param {HTMLElement} chatBox - The chatbox element.
+ * @returns {number|null} - The chatbox number.
+ */
+function getChatBoxNumber(chatBox) {
+    const id = chatBox.id;
+    const match = id.match(/chatBox(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Closes an ongoing request in a specific chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ */
+function stopRequest(chatBoxNumber) {
+    const controller = controllers[chatBoxNumber];
+    if (controller) controller.abort();
+}
+
+/**
+ * Global error handling middleware
+ */
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+});
+
+/**
+ * Starts the initialization of the UI.
+ */
+document.addEventListener('DOMContentLoaded', initializeUI);
