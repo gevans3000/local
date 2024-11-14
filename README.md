@@ -1,36 +1,50 @@
-# Multi-Chatbot Web App
+# Local: Multi-Chatbot Web Application
 
-![Status](https://img.shields.io/badge/Status-Active-brightgreen)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
+Welcome to **Local** – a versatile web application designed to host and interact with multiple chatbots in one place. This project enables users to engage with various bots, each with distinct personalities and functionalities, to enhance productivity, entertainment, and support experiences.
 
-Welcome to the **Multi-Chatbot Web App** – a dynamic and versatile platform that allows you to interact with multiple AI chatbots simultaneously! Whether you're a developer looking to integrate advanced conversational agents into your projects, a researcher exploring AI interactions, or an enthusiast eager to experiment with cutting-edge technologies, this web app is designed to cater to all your needs.
+[![Build Status](https://img.shields.io/github/workflow/status/gevans3000/local/CI)](https://github.com/gevans3000/local/actions)
+[![License](https://img.shields.io/github/license/gevans3000/local)](LICENSE)
+[![Contributors](https://img.shields.io/github/contributors/gevans3000/local)](https://github.com/gevans3000/local/graphs/contributors)
+[![Issues](https://img.shields.io/github/issues/gevans3000/local)](https://github.com/gevans3000/local/issues)
 
-## 🌟 Features
+## Table of Contents
 
-- **Multiple Chatboxes:** Engage with up to four different AI chatbots concurrently, each with its own dedicated interface.
-- **Customizable Message Count:** Control the number of messages displayed in each chatbox with the intuitive "Msg Count" feature.
-- **Seamless API Integration:** Connect effortlessly with OpenAI, NVIDIA, and other AI models to fetch intelligent responses.
-- **Dynamic UI:** User-friendly interface with dropdowns, spinners, and responsive design ensuring a smooth experience across devices.
-- **Context Management:** Retrieve and display context from selected chatboxes to maintain coherent and relevant conversations.
-- **Abort Functionality:** Easily stop ongoing requests with the built-in stop button, providing greater control over interactions.
-- **Secure and Efficient Backend:** Powered by Node.js, Express, and SQLite, ensuring robust performance and data management.
-- **Markdown Support:** Render rich text and Markdown content for more engaging and formatted responses.
-- **Fork and Contribute:** Open-source and actively maintained, inviting developers to fork, enhance, and contribute to the project.
+- [Features](#features)
+- [Demo](#demo)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [Roadmap](#roadmap)
+- [License](#license)
+- [Contact](#contact)
+- [Acknowledgements](#acknowledgements)
 
-## 🚀 Getting Started
+## Features
 
-Follow these instructions to set up and run the Multi-Chatbot Web App on your local machine for development and testing purposes.
+- **Multiple Chatbots:** Host various chatbot models with unique personalities or functions.
+- **Easy Integration:** Simple setup for adding new chatbot models or customizing existing ones.
+- **Interactive UI:** User-friendly interface to seamlessly switch between chatbots.
+- **Extensible Framework:** Easily adaptable to support additional chat functionalities or plugins.
+- **Real-Time Communication:** Fast and efficient message handling for interactive conversations.
+  
+## Demo
 
-### 📋 Prerequisites
+![Local Web App Screenshot](https://path-to-screenshot.png)
+*Coming soon:* Check out our [live demo](#) for an interactive preview of Local in action!
 
-- **Node.js** (v14 or later)
-- **npm** (v6 or later)
-- **SQLite3**
+## Installation
 
-### 🛠 Installation
+To get started with the Local web app, follow these steps.
 
-1. **Clone the Repository**
+### Prerequisites
 
+- **Node.js** (v14 or later) and **npm**
+- **Python** (v3.8 or later, for any backend components using Python-based chatbot models)
+- **Git**
+
+### Setup
+
+1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/multi-chatbot-webapp.git
-   cd multi-chatbot-webapp
+   git clone https://github.com/gevans3000/local.git
+   cd local
