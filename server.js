@@ -1,57 +1,106 @@
 // server.js
-
-// Import dependencies
-require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai');
 const path = require('path');
 const favicon = require('serve-favicon');
-const winston = require('winston');
-const Joi = require('joi');
-const { encode } = require('gpt-3-encoder');
+const config = require('./config');
+const logger = require('./utils/logger');
+const ProcessManager = require('./utils/processManager');
 const db = require('./database');
-const net = require('net');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const execAsync = promisify(exec);
 
 // Initialize Express app
 const app = express();
 app.use(express.json());
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
-
-// Setup Winston logger with environment variables for configurability
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({
-      filename: process.env.LOG_FILE_ERROR || 'error.log',
-      level: 'error',
-    }),
-    new winston.transports.File({
-      filename: process.env.LOG_FILE_COMBINED || 'combined.log',
-    }),
-  ],
-});
-
-// Serve static files from the project directory
 app.use(express.static(__dirname));
 
-// Configuration constants
-const PORT = parseInt(process.env.PORT, 10) || 3000;
-const MAX_PORT_ATTEMPTS = 10;
+// Server state
 let server = null;
+
+// Cleanup function
+async function cleanup() {
+  if (server) {
+    await new Promise(resolve => {
+      server.close(() => {
+        logger.info('Server closed');
+        resolve();
+      });
+      server.unref();
+    });
+
+    if (db.closeDatabase) {
+      await db.closeDatabase();
+    }
+
+    server = null;
+  }
+}
+
+// Setup process handlers
+ProcessManager.setupSignalHandlers(cleanup);
+
+/**
+ * Function to start the server
+ */
+async function startServer() {
+  try {
+    // Kill any existing process on our port
+    await ProcessManager.killProcessOnPort(config.server.port);
+
+    // Clean up if server exists
+    if (server) {
+      await cleanup();
+    }
+
+    server = app.listen(config.server.port, config.server.host);
+    
+    server.on('error', async (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(`Port ${config.server.port} is already in use. Please free the port and try again.`);
+      } else {
+        logger.error(`Server error: ${err.message}`);
+      }
+      await cleanup();
+      process.exit(1);
+    });
+
+    server.on('listening', () => {
+      logger.info(`Server is running on http://${config.server.host}:${config.server.port}`);
+    });
+
+    return server;
+  } catch (err) {
+    logger.error(`Error starting server: ${err.message}`);
+    await cleanup();
+    process.exit(1);
+  }
+}
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: config.openai.apiKey,
+  baseURL: config.openai.baseURL
+});
+
+// Suppress the punycode deprecation warning
+process.noDeprecation = true;
+
+// Start the server
+startServer().catch(async err => {
+  logger.error(`Failed to start server: ${err.message}`);
+  await cleanup();
+  process.exit(1);
+});
+
+// Configuration constants
+const PORT = config.server.port;
+const MAX_PORT_ATTEMPTS = 10;
 
 // Function to kill process on a specific port (Windows)
 async function killProcessOnPort(port) {
   try {
     // Find process ID using port
-    const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
+    const { stdout } = await ProcessManager.execAsync(`netstat -ano | findstr :${port}`);
     const lines = stdout.split('\n');
     
     for (const line of lines) {
@@ -60,7 +109,7 @@ async function killProcessOnPort(port) {
         const pid = parts[parts.length - 1];
         try {
           // Kill the process
-          await execAsync(`taskkill /F /PID ${pid}`);
+          await ProcessManager.execAsync(`taskkill /F /PID ${pid}`);
           logger.info(`Killed process ${pid} on port ${port}`);
         } catch (err) {
           // Process might already be gone
@@ -77,7 +126,7 @@ async function killProcessOnPort(port) {
 // Kill any existing Node process on port 3000
 async function killExistingProcess() {
   try {
-    const { stdout } = await execAsync('netstat -ano | findstr :3000');
+    const { stdout } = await ProcessManager.execAsync('netstat -ano | findstr :3000');
     const lines = stdout.split('\n');
     
     for (const line of lines) {
@@ -85,7 +134,7 @@ async function killExistingProcess() {
       if (parts.length > 4 && parts[1].includes(':3000')) {
         const pid = parts[parts.length - 1];
         try {
-          await execAsync(`taskkill /F /PID ${pid}`);
+          await ProcessManager.execAsync(`taskkill /F /PID ${pid}`);
           logger.info(`Killed process ${pid} on port 3000`);
         } catch (err) {
           // Process might already be gone
@@ -102,7 +151,7 @@ async function killExistingProcess() {
 // Function to check if a port is in use
 function isPortAvailable(port) {
   return new Promise((resolve) => {
-    const tester = net.createServer()
+    const tester = require('net').createServer()
       .once('error', () => {
         resolve(false);
       })
@@ -127,72 +176,6 @@ async function findAvailablePort(startPort) {
   throw new Error('No available ports found');
 }
 
-// Cleanup function
-async function cleanup() {
-  if (server) {
-    // Close the server first
-    await new Promise(resolve => {
-      server.close(() => {
-        logger.info('Server closed');
-        resolve();
-      });
-      // Immediately destroy all connections
-      server.unref();
-    });
-
-    // Close database connection
-    if (db.closeDatabase) {
-      await db.closeDatabase();
-    }
-
-    server = null;
-  }
-}
-
-// Handle all termination signals
-['SIGINT', 'SIGTERM', 'SIGQUIT'].forEach(signal => {
-  process.on(signal, async () => {
-    logger.info(`Received ${signal}, shutting down...`);
-    await cleanup();
-    process.exit(0);
-  });
-});
-
-// Handle nodemon restart
-process.once('SIGUSR2', async () => {
-  await cleanup();
-  process.kill(process.pid, 'SIGUSR2');
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', async (err) => {
-  logger.error(`Uncaught Exception: ${err.message}`);
-  await cleanup();
-  process.exit(1);
-});
-
-// Handle unhandled rejections
-process.on('unhandledRejection', async (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  await cleanup();
-  process.exit(1);
-});
-
-// Handle normal process exit
-process.on('exit', (code) => {
-  logger.info(`Process exit with code: ${code}`);
-});
-
-// Initialize OpenAI clients with configurable base URLs and API keys
-const openaiDefault = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const openaiNVIDIA = new OpenAI({
-  apiKey: process.env.NVIDIA_API_KEY,
-  baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
-});
-
 // Model constants
 const MODEL_DEFAULT = 'gpt-4o-mini';
 const MODEL_OPENAI_ALTERNATE = 'gpt-4o-mini-2024-07-18';
@@ -200,8 +183,8 @@ const MODEL_NVIDIA = 'nvidia/llama-3.1-nemotron-70b-instruct';
 const MODEL_META = 'meta/llama-3.2-3b-instruct';
 
 // Allowed models, configurable via environment variable
-const ALLOWED_MODELS = process.env.ALLOWED_MODELS
-  ? process.env.ALLOWED_MODELS.split(',').map(model => model.trim())
+const ALLOWED_MODELS = config.allowedModels
+  ? config.allowedModels.split(',').map(model => model.trim())
   : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META];
 
 // Helper functions to promisify db.run and db.all
@@ -228,26 +211,8 @@ const all = (sql, params = []) =>
   });
 
 // Joi schemas for input validation
-const askSchema = Joi.object({
-  question: Joi.string().min(1).required(),
-  model: Joi.string().optional(),
-  chatBoxNumber: Joi.number().integer().min(1).required(),
-  context: Joi.array()
-    .items(
-      Joi.object({
-        user: Joi.string().required(),
-        message: Joi.string().required(),
-        timestamp: Joi.string().optional(),
-        tokens: Joi.number().optional(),
-      })
-    )
-    .optional(),
-  system_prompt: Joi.string().optional().allow(''),
-});
-
-const getContextSchema = Joi.object({
-  chatBoxNumbers: Joi.array().items(Joi.number().integer().min(1)).required(),
-});
+const askSchema = require('./utils/validation').askSchema;
+const getContextSchema = require('./utils/validation').getContextSchema;
 
 // Serve the main page
 app.get('/', (req, res) => {
@@ -279,13 +244,16 @@ app.post('/ask', async (req, res) => {
 
     // Select OpenAI client based on model
     if (selectedModel.startsWith('gpt-')) {
-      openaiClient = openaiDefault;
+      openaiClient = openai;
     } else {
-      openaiClient = openaiNVIDIA;
+      openaiClient = new OpenAI({
+        apiKey: config.nvidia.apiKey,
+        baseURL: config.nvidia.baseURL
+      });
     }
 
     // Calculate tokens used for the user question
-    const tokensUsedUser = encode(question).length;
+    const tokensUsedUser = require('gpt-3-encoder').encode(question).length;
 
     // Set user identifier
     const userIdentifier = `You${chatBoxNumber}`;
@@ -329,7 +297,7 @@ app.post('/ask', async (req, res) => {
     const response = await openaiClient.chat.completions.create({
       model: selectedModel,
       messages: messages,
-      temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
+      temperature: parseFloat(config.openai.temperature) || 0.7,
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -398,7 +366,10 @@ app.post('/api/bot-conversation', async (req, res) => {
     // Conduct the conversation
     for (let i = 0; i < turns; i++) {
       const currentModel = isBot1Turn ? bot1Model : bot2Model;
-      const currentClient = currentModel.startsWith('nvidia/') ? openaiNVIDIA : openaiDefault;
+      const currentClient = currentModel.startsWith('nvidia/') ? new OpenAI({
+        apiKey: config.nvidia.apiKey,
+        baseURL: config.nvidia.baseURL
+      }) : openai;
 
       try {
         const completion = await currentClient.chat.completions.create({
@@ -482,51 +453,4 @@ app.use((err, req, res, next) => {
   });
 
   res.status(500).json({ error: 'An unexpected error occurred. Please try again later.' });
-});
-
-/**
- * Function to start the server
- */
-async function startServer() {
-  try {
-    // Kill any existing process on port 3000
-    await killExistingProcess();
-
-    // Clean up if server exists
-    if (server) {
-      await cleanup();
-    }
-
-    server = app.listen(PORT);
-    
-    server.on('error', async (err) => {
-      if (err.code === 'EADDRINUSE') {
-        logger.error(`Port ${PORT} is already in use. Please free the port and try again.`);
-      } else {
-        logger.error(`Server error: ${err.message}`);
-      }
-      await cleanup();
-      process.exit(1);
-    });
-
-    server.on('listening', () => {
-      logger.info(`Server is running on port ${PORT}`);
-    });
-
-    return server;
-  } catch (err) {
-    logger.error(`Error starting server: ${err.message}`);
-    await cleanup();
-    process.exit(1);
-  }
-}
-
-// Suppress the punycode deprecation warning
-process.noDeprecation = true;
-
-// Start the server
-startServer().catch(async err => {
-  logger.error(`Failed to start server: ${err.message}`);
-  await cleanup();
-  process.exit(1);
 });
