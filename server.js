@@ -10,6 +10,10 @@ const winston = require('winston');
 const Joi = require('joi');
 const { encode } = require('gpt-3-encoder');
 const db = require('./database');
+const net = require('net');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 
 // Initialize Express app
 const app = express();
@@ -40,16 +44,146 @@ app.use(express.static(__dirname));
 
 // Configuration constants
 const PORT = parseInt(process.env.PORT, 10) || 3000;
-const MAX_PORT_ATTEMPTS = 5;
+const MAX_PORT_ATTEMPTS = 10;
+let server = null;
 
-// Function to check if port is valid
-function isValidPort(port) {
-  return Number.isInteger(port) && port >= 0 && port < 65536;
+// Function to kill process on a specific port (Windows)
+async function killProcessOnPort(port) {
+  try {
+    // Find process ID using port
+    const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
+    const lines = stdout.split('\n');
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length > 4 && parts[1].includes(`:${port}`)) {
+        const pid = parts[parts.length - 1];
+        try {
+          // Kill the process
+          await execAsync(`taskkill /F /PID ${pid}`);
+          logger.info(`Killed process ${pid} on port ${port}`);
+        } catch (err) {
+          // Process might already be gone
+          logger.warn(`Process ${pid} not found or already terminated`);
+        }
+      }
+    }
+  } catch (err) {
+    // No process found on port
+    logger.info(`No process found on port ${port}`);
+  }
 }
 
-/**
- * Initialize OpenAI clients with configurable base URLs and API keys
- */
+// Kill any existing Node process on port 3000
+async function killExistingProcess() {
+  try {
+    const { stdout } = await execAsync('netstat -ano | findstr :3000');
+    const lines = stdout.split('\n');
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length > 4 && parts[1].includes(':3000')) {
+        const pid = parts[parts.length - 1];
+        try {
+          await execAsync(`taskkill /F /PID ${pid}`);
+          logger.info(`Killed process ${pid} on port 3000`);
+        } catch (err) {
+          // Process might already be gone
+          logger.warn(`Process ${pid} not found or already terminated`);
+        }
+      }
+    }
+  } catch (err) {
+    // No process found on port
+    logger.info('No existing process found on port 3000');
+  }
+}
+
+// Function to check if a port is in use
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once('error', () => {
+        resolve(false);
+      })
+      .once('listening', () => {
+        tester.once('close', () => {
+          resolve(true);
+        }).close();
+      })
+      .listen(port);
+  });
+}
+
+// Find first available port
+async function findAvailablePort(startPort) {
+  for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
+    const available = await isPortAvailable(port);
+    if (available) {
+      return port;
+    }
+    logger.warn(`Port ${port} is in use`);
+  }
+  throw new Error('No available ports found');
+}
+
+// Cleanup function
+async function cleanup() {
+  if (server) {
+    // Close the server first
+    await new Promise(resolve => {
+      server.close(() => {
+        logger.info('Server closed');
+        resolve();
+      });
+      // Immediately destroy all connections
+      server.unref();
+    });
+
+    // Close database connection
+    if (db.closeDatabase) {
+      await db.closeDatabase();
+    }
+
+    server = null;
+  }
+}
+
+// Handle all termination signals
+['SIGINT', 'SIGTERM', 'SIGQUIT'].forEach(signal => {
+  process.on(signal, async () => {
+    logger.info(`Received ${signal}, shutting down...`);
+    await cleanup();
+    process.exit(0);
+  });
+});
+
+// Handle nodemon restart
+process.once('SIGUSR2', async () => {
+  await cleanup();
+  process.kill(process.pid, 'SIGUSR2');
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`);
+  await cleanup();
+  process.exit(1);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', async (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  await cleanup();
+  process.exit(1);
+});
+
+// Handle normal process exit
+process.on('exit', (code) => {
+  logger.info(`Process exit with code: ${code}`);
+});
+
+// Initialize OpenAI clients with configurable base URLs and API keys
 const openaiDefault = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -246,6 +380,94 @@ app.post('/get-context', async (req, res) => {
   }
 });
 
+// Endpoint for bot-to-bot conversation
+app.post('/api/bot-conversation', async (req, res) => {
+  try {
+    const { bot1Model, bot2Model, topic, initialPrompt, turns = 5 } = req.body;
+
+    // Validate input
+    if (!bot1Model || !bot2Model || !initialPrompt) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Generate a unique conversation ID
+    const conversationId = `train_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    let currentPrompt = initialPrompt;
+    let isBot1Turn = true;
+
+    // Conduct the conversation
+    for (let i = 0; i < turns; i++) {
+      const currentModel = isBot1Turn ? bot1Model : bot2Model;
+      const currentClient = currentModel.startsWith('nvidia/') ? openaiNVIDIA : openaiDefault;
+
+      try {
+        const completion = await currentClient.chat.completions.create({
+          model: currentModel,
+          messages: [{ role: 'user', content: currentPrompt }],
+          temperature: 0.7,
+          max_tokens: 1000
+        });
+
+        const response = completion.choices[0].message.content;
+        
+        // Calculate a simple quality score (can be enhanced with more sophisticated metrics)
+        const qualityScore = Math.min(
+          1.0,
+          (response.length / 1000) * // Length factor
+          (response.split(' ').length / 50) * // Word count factor
+          0.9 + 0.1 // Base score
+        );
+
+        // Store the message
+        await db.addTrainingMessage(
+          conversationId,
+          bot1Model,
+          bot2Model,
+          response,
+          isBot1Turn,
+          qualityScore,
+          topic,
+          JSON.stringify({ turn: i + 1, totalTurns: turns })
+        );
+
+        currentPrompt = response;
+        isBot1Turn = !isBot1Turn;
+      } catch (error) {
+        logger.error(`Error in bot conversation turn ${i + 1}: ${error.message}`);
+        break;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      conversationId,
+      message: `Generated ${turns} turns of conversation between ${bot1Model} and ${bot2Model}`
+    });
+
+  } catch (error) {
+    logger.error(`Error in bot conversation: ${error.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint to export training data
+app.get('/api/export-training-data', async (req, res) => {
+  try {
+    const minQualityScore = parseFloat(req.query.minQualityScore) || 0.7;
+    const trainingData = await db.exportTrainingData(minQualityScore);
+    
+    res.json({
+      success: true,
+      data: trainingData,
+      count: trainingData.length,
+      minQualityScore
+    });
+  } catch (error) {
+    logger.error(`Error exporting training data: ${error.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 /**
  * Global error handling middleware
  */
@@ -263,31 +485,48 @@ app.use((err, req, res, next) => {
 });
 
 /**
- * Function to start the server with port handling
+ * Function to start the server
  */
-function startServer(port, attempt = 1) {
-  if (attempt > MAX_PORT_ATTEMPTS) {
-    logger.error('Maximum port attempts reached. Server could not start.');
+async function startServer() {
+  try {
+    // Kill any existing process on port 3000
+    await killExistingProcess();
+
+    // Clean up if server exists
+    if (server) {
+      await cleanup();
+    }
+
+    server = app.listen(PORT);
+    
+    server.on('error', async (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(`Port ${PORT} is already in use. Please free the port and try again.`);
+      } else {
+        logger.error(`Server error: ${err.message}`);
+      }
+      await cleanup();
+      process.exit(1);
+    });
+
+    server.on('listening', () => {
+      logger.info(`Server is running on port ${PORT}`);
+    });
+
+    return server;
+  } catch (err) {
+    logger.error(`Error starting server: ${err.message}`);
+    await cleanup();
     process.exit(1);
   }
-
-  if (!isValidPort(port)) {
-    logger.warn(`Invalid port number: ${port}. Trying port ${port + 1}`);
-    return startServer(port + 1, attempt + 1);
-  }
-
-  app.listen(port, () => {
-    logger.info(`Server is running on port ${port}`);
-  }).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      logger.warn(`Port ${port} is in use. Trying port ${port + 1}`);
-      startServer(port + 1, attempt + 1);
-    } else {
-      logger.error(`Server error: ${err.message}`);
-      process.exit(1);
-    }
-  });
 }
 
-// Start the server with initial PORT
-startServer(PORT);
+// Suppress the punycode deprecation warning
+process.noDeprecation = true;
+
+// Start the server
+startServer().catch(async err => {
+  logger.error(`Failed to start server: ${err.message}`);
+  await cleanup();
+  process.exit(1);
+});

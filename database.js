@@ -103,6 +103,48 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
           }
         }
       );
+
+      // Create the training_conversations table for bot-to-bot interactions
+      db.run(
+        `
+          CREATE TABLE IF NOT EXISTS training_conversations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              conversation_id TEXT NOT NULL,
+              bot1_name TEXT NOT NULL,
+              bot2_name TEXT NOT NULL,
+              message TEXT NOT NULL,
+              is_bot1 BOOLEAN NOT NULL,
+              quality_score FLOAT CHECK(quality_score >= 0 AND quality_score <= 1),
+              topic TEXT,
+              metadata TEXT,
+              timestamp TEXT NOT NULL,
+              tokens INTEGER CHECK(tokens >= 0)
+          )
+      `,
+        (err) => {
+          if (err) {
+            logger.error(`Error creating training_conversations table: ${err.message}`);
+          } else {
+            logger.info('Training conversations table is ready.');
+          }
+        }
+      );
+
+      // Create indices for the training_conversations table
+      db.run(
+        `
+          CREATE INDEX IF NOT EXISTS idx_conversation_id ON training_conversations(conversation_id);
+          CREATE INDEX IF NOT EXISTS idx_quality_score ON training_conversations(quality_score);
+          CREATE INDEX IF NOT EXISTS idx_training_timestamp ON training_conversations(timestamp);
+      `,
+        (err) => {
+          if (err) {
+            logger.error(`Error creating training conversation indices: ${err.message}`);
+          } else {
+            logger.info('Training conversation indices are ready.');
+          }
+        }
+      );
     });
   }
 });
@@ -196,28 +238,130 @@ function getMessages(chatBoxNumbers) {
 
 /**
  * Closes the database connection gracefully and clears the cache.
+ * @returns {Promise<void>}
  */
 function closeDatabase() {
-  db.close((err) => {
-    if (err) {
-      logger.error(`Error closing database: ${err.message}`);
+  return new Promise((resolve) => {
+    // Check if database is already closed
+    if (db.open) {
+      db.close((err) => {
+        if (err) {
+          logger.error(`Error closing database: ${err.message}`);
+        } else {
+          logger.info('Database connection closed.');
+        }
+        messageCache.clear();
+        logger.info('Message cache cleared.');
+        resolve();
+      });
     } else {
-      logger.info('Database connection closed.');
+      messageCache.clear();
+      logger.info('Message cache cleared.');
+      resolve();
     }
   });
-  messageCache.clear();
-  logger.info('Message cache cleared.');
 }
 
 // Handle process exit to close the database connection gracefully
-process.on('SIGINT', () => {
-  closeDatabase();
+process.on('SIGINT', async () => {
+  await closeDatabase();
   process.exit(0);
 });
+
+// Add a new training conversation message
+async function addTrainingMessage(conversationId, bot1Name, bot2Name, message, isBot1, qualityScore, topic = null, metadata = null) {
+  const timestamp = new Date().toISOString();
+  const tokens = message.length;
+
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO training_conversations 
+       (conversation_id, bot1_name, bot2_name, message, is_bot1, quality_score, topic, metadata, timestamp, tokens)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [conversationId, bot1Name, bot2Name, message, isBot1 ? 1 : 0, qualityScore, topic, metadata, timestamp, tokens],
+      function(err) {
+        if (err) {
+          logger.error(`Error adding training message: ${err.message}`);
+          reject(err);
+        } else {
+          resolve(this.lastID);
+        }
+      }
+    );
+  });
+}
+
+// Get all messages from a specific training conversation
+async function getTrainingConversation(conversationId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT * FROM training_conversations WHERE conversation_id = ? ORDER BY timestamp ASC',
+      [conversationId],
+      (err, rows) => {
+        if (err) {
+          logger.error(`Error retrieving training conversation: ${err.message}`);
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      }
+    );
+  });
+}
+
+// Export training data in JSONL format for LLM fine-tuning
+async function exportTrainingData(minQualityScore = 0.7) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT * FROM training_conversations 
+       WHERE quality_score >= ? 
+       ORDER BY conversation_id, timestamp`,
+      [minQualityScore],
+      (err, rows) => {
+        if (err) {
+          logger.error(`Error exporting training data: ${err.message}`);
+          reject(err);
+        } else {
+          // Group messages by conversation
+          const conversations = {};
+          rows.forEach(row => {
+            if (!conversations[row.conversation_id]) {
+              conversations[row.conversation_id] = [];
+            }
+            conversations[row.conversation_id].push(row);
+          });
+
+          // Format data for fine-tuning
+          const trainingData = Object.values(conversations).map(conversation => {
+            return {
+              messages: conversation.map(msg => ({
+                role: msg.is_bot1 ? "assistant" : "user",
+                content: msg.message
+              })),
+              metadata: {
+                topic: conversation[0].topic,
+                quality_score: conversation[0].quality_score,
+                bot1_name: conversation[0].bot1_name,
+                bot2_name: conversation[0].bot2_name,
+                timestamp: conversation[0].timestamp
+              }
+            };
+          });
+
+          resolve(trainingData);
+        }
+      }
+    );
+  });
+}
 
 // Attach addMessage and getMessages to the db instance
 db.addMessage = addMessage;
 db.getMessages = getMessages;
+db.addTrainingMessage = addTrainingMessage;
+db.getTrainingConversation = getTrainingConversation;
+db.exportTrainingData = exportTrainingData;
+db.closeDatabase = closeDatabase;
 
 // Export the db instance
 module.exports = db;

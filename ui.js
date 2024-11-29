@@ -81,6 +81,13 @@ function addMsgCountInput(chatBox) {
         return;
     }
 
+    // Check if msg count input already exists
+    const existingMsgCount = dropdownContent.querySelector('.msg-count-container');
+    if (existingMsgCount) {
+        // Msg count input already exists, no need to add another one
+        return;
+    }
+
     // Create the container for Msg Count
     const msgCountContainer = document.createElement('div');
     msgCountContainer.classList.add('msg-count-container');
@@ -114,9 +121,9 @@ function addMsgCountInput(chatBox) {
         updateMessageDisplay(getChatBoxNumber(chatBox));
     });
 
-    // Append elements
-    msgCountLabel.appendChild(msgCountInput);
+    // Append elements in the correct order
     msgCountContainer.appendChild(msgCountLabel);
+    msgCountContainer.appendChild(msgCountInput);
     dropdownContent.appendChild(msgCountContainer);
 }
 
