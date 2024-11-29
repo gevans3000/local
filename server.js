@@ -108,6 +108,11 @@ const askSchema = Joi.object({
       })
     )
     .optional(),
+  system_prompt: Joi.string().optional().allow(''),
+});
+
+const getContextSchema = Joi.object({
+  chatBoxNumbers: Joi.array().items(Joi.number().integer().min(1)).required(),
 });
 
 // Serve the main page
@@ -124,7 +129,7 @@ app.post('/ask', async (req, res) => {
     return res.status(400).json({ error: error.details[0].message });
   }
 
-  const { question, model, chatBoxNumber, context } = value;
+  const { question, model, chatBoxNumber, context, system_prompt } = value;
   const selectedModel = model || MODEL_DEFAULT;
   const timestamp = new Date().toLocaleString();
 
@@ -152,18 +157,24 @@ app.post('/ask', async (req, res) => {
     const userIdentifier = `You${chatBoxNumber}`;
 
     // Save user question to the database
-    await run(
-      `
-      INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `,
-      [chatBoxNumber, 'Human', userIdentifier, question, timestamp, tokensUsedUser]
+    await db.addMessage(
+      chatBoxNumber,
+      userIdentifier,
+      question,
+      timestamp,
+      tokensUsedUser,
+      'Human',
+      system_prompt
     );
 
     logger.info(`User message saved for chatBoxNumber ${chatBoxNumber}`);
 
     // Prepare messages array for OpenAI
     let messages = [];
+
+    if (system_prompt) {
+      messages.push({ role: 'system', content: system_prompt });
+    }
 
     if (Array.isArray(context) && context.length > 0) {
       context.forEach((msg) => {
@@ -195,12 +206,14 @@ app.post('/ask', async (req, res) => {
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
     // Save AI response to the database
-    await run(
-      `
-      INSERT INTO conversations (chatBoxNumber, modelName, user, message, timestamp, tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `,
-      [chatBoxNumber, selectedModel, responseUserIdentifier, answer, timestamp, tokensUsed]
+    await db.addMessage(
+      chatBoxNumber,
+      responseUserIdentifier,
+      answer,
+      timestamp,
+      tokensUsed,
+      selectedModel,
+      system_prompt
     );
 
     logger.info(`AI message saved for chatBoxNumber ${chatBoxNumber}`);
@@ -214,37 +227,22 @@ app.post('/ask', async (req, res) => {
 
 // Handle '/get-context' endpoint
 app.post('/get-context', async (req, res) => {
-  const { chatBoxNumbers } = req.body;
-
-  if (!Array.isArray(chatBoxNumbers) || chatBoxNumbers.length === 0) {
-    logger.warn('Invalid chatBoxNumbers provided.');
-    return res.status(400).json({ error: 'chatBoxNumbers must be a non-empty array.' });
+  // Validate request body
+  const { error, value } = getContextSchema.validate(req.body);
+  if (error) {
+    logger.warn(`Validation error in /get-context: ${error.details[0].message}`);
+    return res.status(400).json({ error: error.details[0].message });
   }
 
+  const { chatBoxNumbers } = value;
+
   try {
-    // Validate chatBoxNumbers
-    const validChatBoxNumbers = chatBoxNumbers.every(
-      (num) => Number.isInteger(num) && num >= 1
-    );
-    if (!validChatBoxNumbers) {
-      logger.warn('Invalid chatBoxNumbers provided.');
-      return res.status(400).json({ error: 'chatBoxNumbers must contain valid integers.' });
-    }
+    const messages = await db.getMessages(chatBoxNumbers);
 
-    // Fetch context from the database
-    const placeholders = chatBoxNumbers.map(() => '?').join(',');
-    const sql = `
-      SELECT chatBoxNumber, user, message, timestamp, tokens
-      FROM conversations
-      WHERE chatBoxNumber IN (${placeholders})
-      ORDER BY datetime(timestamp) ASC
-    `;
-    const rows = await all(sql, chatBoxNumbers);
-
-    res.json({ context: rows });
+    res.json({ context: messages });
   } catch (err) {
-    logger.error(`Error retrieving context: ${err.message}`, { stack: err.stack });
-    res.status(500).json({ error: 'Failed to retrieve context.' });
+    logger.error(`Error in /get-context endpoint: ${err.message}`, { stack: err.stack });
+    res.status(500).json({ error: 'An error occurred while fetching context.' });
   }
 });
 
@@ -268,29 +266,24 @@ app.use((err, req, res, next) => {
  * Function to start the server with port handling
  */
 function startServer(port, attempt = 1) {
-  if (!isValidPort(port)) {
-    logger.error(`Invalid port number: ${port}. Must be >= 0 and < 65536.`);
+  if (attempt > MAX_PORT_ATTEMPTS) {
+    logger.error('Maximum port attempts reached. Server could not start.');
     process.exit(1);
   }
 
-  if (attempt > MAX_PORT_ATTEMPTS) {
-    logger.error(`Failed to start server after ${MAX_PORT_ATTEMPTS} attempts.`);
-    process.exit(1);
+  if (!isValidPort(port)) {
+    logger.warn(`Invalid port number: ${port}. Trying port ${port + 1}`);
+    return startServer(port + 1, attempt + 1);
   }
 
   app.listen(port, () => {
-    logger.info(`Server running on http://localhost:${port}`);
+    logger.info(`Server is running on port ${port}`);
   }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      const nextPort = port + 1;
-      if (!isValidPort(nextPort)) {
-        logger.error(`Next port (${nextPort}) is invalid. Cannot proceed further.`);
-        process.exit(1);
-      }
-      logger.warn(`Port ${port} is in use. Trying port ${nextPort}...`);
-      startServer(nextPort, attempt + 1);
+      logger.warn(`Port ${port} is in use. Trying port ${port + 1}`);
+      startServer(port + 1, attempt + 1);
     } else {
-      logger.error(`Failed to start server: ${err.message}`);
+      logger.error(`Server error: ${err.message}`);
       process.exit(1);
     }
   });

@@ -140,11 +140,11 @@ async function getContext(chatBoxNumber) {
             throw new Error('Invalid context data received.');
         }
 
-        // Sort messages by timestamp ascending
-        contextData.context.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // Sort messages by timestamp descending
+        contextData.context.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         // Slice to last N messages
-        const limitedContext = contextData.context.slice(-msgCount);
+        const limitedContext = contextData.context.slice(0, msgCount);
 
         // Clear current messages
         const messagesContainer = chatBox.querySelector('.messages');
@@ -293,11 +293,11 @@ async function askQuestion(chatBoxNumber, event = null) {
             if (selectedChatBoxes.length > 0) {
                 const contextData = await fetchContext(selectedChatBoxes);
                 if (Array.isArray(contextData.context)) {
-                    // Sort messages by timestamp ascending
-                    contextData.context.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    // Sort messages by timestamp descending
+                    contextData.context.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                     // Slice to last N messages
-                    const limitedContext = contextData.context.slice(-msgCount);
+                    const limitedContext = contextData.context.slice(0, msgCount);
 
                     limitedContext.forEach(msg => {
                         if (msg.user.startsWith('You')) {
@@ -321,7 +321,13 @@ async function askQuestion(chatBoxNumber, event = null) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ question: question, model: model, chatBoxNumber: chatBoxNumber, context: context }),
+                body: JSON.stringify({ 
+                    question: question, 
+                    model: model, 
+                    chatBoxNumber: chatBoxNumber, 
+                    context: context,
+                    system_prompt: systemPrompts[chatBoxNumber] || ""
+                }),
                 signal: signal
             });
             const data = await response.json();
@@ -361,6 +367,61 @@ async function askQuestion(chatBoxNumber, event = null) {
 function stopRequest(chatBoxNumber) {
     const controller = controllers[chatBoxNumber];
     if (controller) controller.abort();
+}
+
+/**
+ * Displays a message in the specified chat box.
+ *
+ * @param {number} chatBoxNumber - The number of the chat box.
+ * @param {string} user - The user identifier.
+ * @param {string} message - The message content.
+ * @param {string} timestamp - The timestamp of the message.
+ * @param {number} [tokensUsed=null] - The number of tokens used (optional).
+ * @param {boolean} [isMarkdown=false] - Whether the message should be rendered as Markdown.
+ */
+function displayMessage(chatBoxNumber, user, message, timestamp, tokensUsed = null, isMarkdown = false) {
+    const chatBox = document.getElementById(`chatBox${chatBoxNumber}`);
+    if (!chatBox) {
+        console.error(`ChatBox with ID chatBox${chatBoxNumber} not found.`);
+        return;
+    }
+    const messagesContainer = chatBox.querySelector('.messages');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+
+    // Determine message alignment and styling
+    if (user.startsWith('You')) {
+        messageElement.classList.add('user-message');
+    } else if (user === 'System') {
+        messageElement.classList.add('system-message');
+    } else {
+        messageElement.classList.add('assistant-message');
+    }
+
+    // Build message content
+    let content = `<strong>${user}</strong>`;
+
+    if (isMarkdown) {
+        // Sanitize and render Markdown
+        const html = DOMPurify.sanitize(marked.parse(message));
+        content += `<div>${html}</div>`;
+    } else {
+        content += `<div>${message}</div>`;
+    }
+
+    content += `<div class="timestamp">${timestamp}</div>`;
+
+    if (tokensUsed !== null) {
+        content += `<div class="tokens">Tokens used: ${tokensUsed}</div>`;
+    }
+
+    messageElement.innerHTML = content;
+
+    // Insert the message at the top
+    messagesContainer.insertBefore(messageElement, messagesContainer.firstChild);
+
+    // Scroll to top
+    messagesContainer.scrollTop = 0;
 }
 
 /**

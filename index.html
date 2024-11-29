@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+﻿<!-- index.html -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Multi-Chatbox Interface </title>
+    <title>Multi-Chatbox Interface</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Include Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -17,7 +18,15 @@
     <div class="chat-container">
         <div class="chat-row">
             <div class="chat-box" id="chatBox1">
-                <h1>Chat with OpenAI GPT-4o-mini</h1>
+                <h1>
+                    Chat with OpenAI GPT-4o-mini
+                    <span class="gear-icon" onclick="toggleSystemPrompt(1)">⚙️</span>
+                </h1>
+                <!-- System Prompt Text Area -->
+                <div class="system-prompt-container" id="systemPromptContainer1">
+                    <textarea id="systemPromptTextarea1" placeholder="Enter system prompt..."></textarea>
+                    <button class="close-button" onclick="toggleSystemPrompt(1)">X</button>
+                </div>
                 <div id="inputArea1">
                     <input type="text" id="question1" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(1, event)">
                     <button onclick="askQuestion(1)">Ask</button>
@@ -33,6 +42,11 @@
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                        <!-- Msg Count Input -->
+                        <div class="msg-count-container">
+                            <label for="msgCount1">Msg Count: </label>
+                            <input type="number" id="msgCount1" class="msg-count-input" min="1" max="99" value="10">
+                        </div>
                     </div>
                 </div>
                 <div class="messages" id="messages1">
@@ -40,7 +54,15 @@
                 </div>
             </div>
             <div class="chat-box" id="chatBox2">
-                <h1>Chat with OpenAI GPT-4o-mini-2024-07-18</h1>
+                <h1>
+                    Chat with OpenAI GPT-4o-mini-2024-07-18
+                    <span class="gear-icon" onclick="toggleSystemPrompt(2)">⚙️</span>
+                </h1>
+                <!-- System Prompt Text Area -->
+                <div class="system-prompt-container" id="systemPromptContainer2">
+                    <textarea id="systemPromptTextarea2" placeholder="Enter system prompt..."></textarea>
+                    <button class="close-button" onclick="toggleSystemPrompt(2)">X</button>
+                </div>
                 <div id="inputArea2">
                     <input type="text" id="question2" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(2, event)">
                     <button onclick="askQuestion(2)">Ask</button>
@@ -58,6 +80,11 @@
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="2" checked> ChatBox 2</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                        <!-- Msg Count Input -->
+                        <div class="msg-count-container">
+                            <label for="msgCount2">Msg Count: </label>
+                            <input type="number" id="msgCount2" class="msg-count-input" min="1" max="99" value="10">
+                        </div>
                     </div>
                 </div>
                 <div class="messages" id="messages2">
@@ -67,7 +94,15 @@
         </div>
         <div class="chat-row">
             <div class="chat-box" id="chatBox3">
-                <h1>Chat with OpenAI NVIDIA LLM</h1>
+                <h1>
+                    Chat with NVIDIA LLM
+                    <span class="gear-icon" onclick="toggleSystemPrompt(3)">⚙️</span>
+                </h1>
+                <!-- System Prompt Text Area -->
+                <div class="system-prompt-container" id="systemPromptContainer3">
+                    <textarea id="systemPromptTextarea3" placeholder="Enter system prompt..."></textarea>
+                    <button class="close-button" onclick="toggleSystemPrompt(3)">X</button>
+                </div>
                 <div id="inputArea3">
                     <input type="text" id="question3" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(3, event)">
                     <button onclick="askQuestion(3)">Ask</button>
@@ -83,6 +118,11 @@
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="3" checked> ChatBox 3</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="4"> ChatBox 4</label>
+                        <!-- Msg Count Input -->
+                        <div class="msg-count-container">
+                            <label for="msgCount3">Msg Count: </label>
+                            <input type="number" id="msgCount3" class="msg-count-input" min="1" max="99" value="10">
+                        </div>
                     </div>
                 </div>
                 <div class="messages" id="messages3">
@@ -90,7 +130,15 @@
                 </div>
             </div>
             <div class="chat-box" id="chatBox4">
-                <h1>Chat with OpenAI NVIDIA LLM</h1>
+                <h1>
+                    Chat with Meta LLM
+                    <span class="gear-icon" onclick="toggleSystemPrompt(4)">⚙️</span>
+                </h1>
+                <!-- System Prompt Text Area -->
+                <div class="system-prompt-container" id="systemPromptContainer4">
+                    <textarea id="systemPromptTextarea4" placeholder="Enter system prompt..."></textarea>
+                    <button class="close-button" onclick="toggleSystemPrompt(4)">X</button>
+                </div>
                 <div id="inputArea4">
                     <input type="text" id="question4" placeholder="Type your question here..." onkeypress="if(event.key === 'Enter') askQuestion(4, event)">
                     <button onclick="askQuestion(4)">Ask</button>
@@ -108,6 +156,11 @@
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="2"> ChatBox 2</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="3"> ChatBox 3</label>
                         <label><input type="checkbox" class="selectChatBox" data-chatbox="4" checked> ChatBox 4</label>
+                        <!-- Msg Count Input -->
+                        <div class="msg-count-container">
+                            <label for="msgCount4">Msg Count: </label>
+                            <input type="number" id="msgCount4" class="msg-count-input" min="1" max="99" value="10">
+                        </div>
                     </div>
                 </div>
                 <div class="messages" id="messages4">
@@ -116,24 +169,5 @@
             </div>
         </div>
     </div>
-    <script>
-        // Dropdown functionality
-        document.querySelectorAll('.dropdown-button').forEach(button => {
-            button.addEventListener('click', (event) => {
-                event.stopPropagation();
-                const dropdown = button.nextElementSibling;
-                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-            });
-        });
-
-        // Close dropdown when clicking outside
-        window.addEventListener('click', (event) => {
-            if (!event.target.matches('.dropdown-button')) {
-                document.querySelectorAll('.dropdown-content').forEach(dropdown => {
-                    dropdown.style.display = 'none';
-                });
-            }
-        });
-    </script>
 </body>
 </html>
