@@ -325,7 +325,7 @@ app.post('/ask', async (req, res) => {
             inputs: question,
             parameters: {
               temperature: 0.8,
-              max_new_tokens: 50,
+              max_new_tokens: 200,
               seed: 42
             }
           },
@@ -347,6 +347,31 @@ app.post('/ask', async (req, res) => {
         logger.error(`API error in chatbox 3: ${error.message}`);
         throw error;
       }
+    } else if (chatBoxNumber === 4) {
+      // Existing model selection logic
+      if (selectedModel.startsWith('gpt-')) {
+        openaiClient = openai;
+      } else if (selectedModel.startsWith('nvidia/') || selectedModel.startsWith('meta/')) {
+        openaiClient = new OpenAI({
+          apiKey: config.nvidia.apiKey,
+          baseURL: config.nvidia.baseURL
+        });
+      } else {
+        openaiClient = new OpenAI({
+          apiKey: config.nvidia.apiKey,
+          baseURL: config.nvidia.baseURL
+        });
+      }
+
+      // Get response from OpenAI
+      response = await openaiClient.chat.completions.create({
+        model: selectedModel,
+        messages: [
+          { role: 'user', content: question }
+        ],
+        temperature: parseFloat(config.openai.temperature) || 0.7,
+        max_tokens: 200  // Increasing token limit for longer responses
+      });
     } else {
       // Existing model selection logic
       if (selectedModel.startsWith('gpt-')) {
