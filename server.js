@@ -18,6 +18,7 @@ const favicon = require('serve-favicon');
 const config = require('./config');
 const { logger, ProcessManager } = require('./src/utils');
 const db = require('./src/database');
+const axios = require('axios');
 
 /**
  * Initialize Express app
@@ -225,11 +226,12 @@ const MODEL_DEFAULT = 'gpt-4o-mini';
 const MODEL_OPENAI_ALTERNATE = 'gpt-4o-mini-2024-07-18';
 const MODEL_NVIDIA = 'nvidia/llama-3.1-nemotron-70b-instruct';
 const MODEL_META = 'meta/llama-3.2-3b-instruct';
+const MODEL_CODELLAMA = 'codellama/CodeLlama-7b-hf';
 
 // Allowed models, configurable via environment variable
 const ALLOWED_MODELS = config.allowedModels
   ? config.allowedModels.split(',').map(model => model.trim())
-  : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META];
+  : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META, MODEL_CODELLAMA];
 
 /**
  * Promisified database run operation
@@ -293,72 +295,83 @@ app.post('/ask', async (req, res) => {
 
   try {
     let openaiClient;
-    let responseUserIdentifier = `Assistant${chatBoxNumber}`;  
-
-    // Select OpenAI client based on model prefix
-    if (selectedModel.startsWith('gpt-')) {
-      openaiClient = openai;
-    } else if (selectedModel.startsWith('nvidia/') || selectedModel.startsWith('meta/')) {
-      openaiClient = new OpenAI({
-        apiKey: config.nvidia.apiKey,
-        baseURL: config.nvidia.baseURL
-      });
-    } else {
-      // For any other model, default to NVIDIA API
-      openaiClient = new OpenAI({
-        apiKey: config.nvidia.apiKey,
-        baseURL: config.nvidia.baseURL
-      });
-    }
+    let responseUserIdentifier = `Assistant${chatBoxNumber}`;
+    let response;
 
     // Calculate tokens used for the user question
     const tokensUsedUser = require('gpt-3-encoder').encode(question).length;
-
-    // Set user identifier
-    const userIdentifier = `You${chatBoxNumber}`;
 
     // Save user question to the database
     const database = await db;
     await database.addMessage(
       chatBoxNumber,
-      userIdentifier,
+      `You${chatBoxNumber}`,
       question,
       timestamp,
       tokensUsedUser,
-      'Human',
+      selectedModel,
       system_prompt
     );
 
     logger.info(`User message saved for chatBoxNumber ${chatBoxNumber}`);
 
-    // Prepare messages array for OpenAI
-    let messages = [];
+    // Special handling for chatbox 3 with CodeLlama or custom model
+    if (chatBoxNumber === 3) {
+      try {
+        // For chatbox 3, always use HuggingFace API
+        const huggingfaceResponse = await axios.post(
+          `https://api-inference.huggingface.co/models/${selectedModel}`,
+          {
+            inputs: question,
+            parameters: {
+              temperature: 0.8,
+              max_new_tokens: 50,
+              seed: 42
+            }
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${config.huggingface.apiKey}`
+            }
+          }
+        );
+        
+        response = {
+          choices: [{
+            message: {
+              content: huggingfaceResponse.data[0].generated_text
+            }
+          }]
+        };
+      } catch (error) {
+        logger.error(`API error in chatbox 3: ${error.message}`);
+        throw error;
+      }
+    } else {
+      // Existing model selection logic
+      if (selectedModel.startsWith('gpt-')) {
+        openaiClient = openai;
+      } else if (selectedModel.startsWith('nvidia/') || selectedModel.startsWith('meta/')) {
+        openaiClient = new OpenAI({
+          apiKey: config.nvidia.apiKey,
+          baseURL: config.nvidia.baseURL
+        });
+      } else {
+        openaiClient = new OpenAI({
+          apiKey: config.nvidia.apiKey,
+          baseURL: config.nvidia.baseURL
+        });
+      }
 
-    if (system_prompt) {
-      messages.push({ role: 'system', content: system_prompt });
-    }
-
-    if (Array.isArray(context) && context.length > 0) {
-      context.forEach((msg) => {
-        if (msg.user.startsWith('You')) {
-          messages.push({ role: 'user', content: msg.message });
-        } else if (msg.user === 'System') {
-          messages.push({ role: 'system', content: msg.message });
-        } else {
-          messages.push({ role: 'assistant', content: msg.message });
-        }
+      // Get response from OpenAI
+      response = await openaiClient.chat.completions.create({
+        model: selectedModel,
+        messages: [
+          { role: 'user', content: question }
+        ],
+        temperature: parseFloat(config.openai.temperature) || 0.7,
       });
     }
-
-    // Add the current user question
-    messages.push({ role: 'user', content: question });
-
-    // Get response from OpenAI
-    const response = await openaiClient.chat.completions.create({
-      model: selectedModel,
-      messages: messages,
-      temperature: parseFloat(config.openai.temperature) || 0.7,
-    });
 
     if (!response.choices || response.choices.length === 0) {
       throw new Error('No response from OpenAI API.');

@@ -95,7 +95,7 @@
         <div class="chat-row">
             <div class="chat-box" id="chatBox3">
                 <h1>
-                    Chat with NVIDIA LLM
+                    Chat with HuggingFace Models
                     <span class="gear-icon" onclick="toggleSystemPrompt(3)">⚙️</span>
                 </h1>
                 <!-- System Prompt Text Area -->
@@ -109,6 +109,8 @@
                     <button id="stopButton3" onclick="stopRequest(3)" style="display: none;">Stop</button>
                     <button id="getContextButton3" onclick="getContext(3)">Get Context</button>
                     <div id="loadingSpinner3" class="spinner" style="display: none;"></div>
+                      <!-- Textarea for custom model input -->
+    <textarea id="modelInput3" placeholder="Enter custom model name (default: codellama/CodeLlama-7b-hf)" rows="2"></textarea>
                 </div>
                 <div class="dropdown-container">
                     <button class="dropdown-button">Select Chatboxes ▼</button>

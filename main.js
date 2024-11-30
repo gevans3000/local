@@ -237,13 +237,14 @@ async function askQuestion(chatBoxNumber, event = null) {
     let model;
 
     // Determine the model based on chatBoxNumber and textarea input
-    if (chatBoxNumber === 2 || chatBoxNumber === 4) {
+    if (chatBoxNumber === 2 || chatBoxNumber === 3 || chatBoxNumber === 4) {
         const modelInput = document.getElementById(`modelInput${chatBoxNumber}`);
         model = (modelInput && modelInput.value.trim() !== "") ? modelInput.value.trim() :
-                (chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" : "meta/llama-3.2-3b-instruct");
+                (chatBoxNumber === 2 ? "gpt-4o-mini-2024-07-18" : 
+                 chatBoxNumber === 3 ? "codellama/CodeLlama-7b-hf" :
+                 "meta/llama-3.2-3b-instruct");
     } else {
-        model = chatBoxNumber === 1 ? "gpt-4o-mini" :
-                "nvidia/llama-3.1-nemotron-70b-instruct"; // For chatBox3
+        model = "gpt-4o-mini"; // For chatBox1
     }
 
     if (question) {

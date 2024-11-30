@@ -21,5 +21,8 @@ module.exports = {
   nvidia: {
     apiKey: process.env.NVIDIA_API_KEY,
     baseURL: "https://integrate.api.nvidia.com/v1"
+  },
+  huggingface: {
+    apiKey: process.env.HUGGINGFACE_API_KEY
   }
 };
