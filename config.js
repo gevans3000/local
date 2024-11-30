@@ -17,5 +17,9 @@ module.exports = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: process.env.OPENAI_BASE_URL
+  },
+  nvidia: {
+    apiKey: process.env.NVIDIA_API_KEY,
+    baseURL: "https://integrate.api.nvidia.com/v1"
   }
 };

@@ -4,9 +4,8 @@ const OpenAI = require('openai');
 const path = require('path');
 const favicon = require('serve-favicon');
 const config = require('./config');
-const logger = require('./utils/logger');
-const ProcessManager = require('./utils/processManager');
-const db = require('./database');
+const { logger, ProcessManager } = require('./src/utils');
+const db = require('./src/database');
 
 // Initialize Express app
 const app = express();
@@ -28,8 +27,9 @@ async function cleanup() {
       server.unref();
     });
 
-    if (db.closeDatabase) {
-      await db.closeDatabase();
+    const database = await db;
+    if (database.closeDatabase) {
+      await database.closeDatabase();
     }
 
     server = null;
@@ -211,8 +211,7 @@ const all = (sql, params = []) =>
   });
 
 // Joi schemas for input validation
-const askSchema = require('./utils/validation').askSchema;
-const getContextSchema = require('./utils/validation').getContextSchema;
+const { askSchema, getContextSchema } = require('./src/utils');
 
 // Serve the main page
 app.get('/', (req, res) => {
@@ -234,18 +233,18 @@ app.post('/ask', async (req, res) => {
 
   try {
     let openaiClient;
-    let responseUserIdentifier = selectedModel;
+    let responseUserIdentifier = `Assistant${chatBoxNumber}`;  
 
-    // Validate model
-    if (!ALLOWED_MODELS.includes(selectedModel)) {
-      logger.error(`Invalid model specified: ${selectedModel}`);
-      return res.status(400).json({ error: 'Invalid model specified.' });
-    }
-
-    // Select OpenAI client based on model
+    // Select OpenAI client based on model prefix
     if (selectedModel.startsWith('gpt-')) {
       openaiClient = openai;
+    } else if (selectedModel.startsWith('nvidia/') || selectedModel.startsWith('meta/')) {
+      openaiClient = new OpenAI({
+        apiKey: config.nvidia.apiKey,
+        baseURL: config.nvidia.baseURL
+      });
     } else {
+      // For any other model, default to NVIDIA API
       openaiClient = new OpenAI({
         apiKey: config.nvidia.apiKey,
         baseURL: config.nvidia.baseURL
@@ -259,7 +258,8 @@ app.post('/ask', async (req, res) => {
     const userIdentifier = `You${chatBoxNumber}`;
 
     // Save user question to the database
-    await db.addMessage(
+    const database = await db;
+    await database.addMessage(
       chatBoxNumber,
       userIdentifier,
       question,
@@ -308,7 +308,7 @@ app.post('/ask', async (req, res) => {
     const tokensUsed = response.usage ? response.usage.total_tokens : null;
 
     // Save AI response to the database
-    await db.addMessage(
+    await database.addMessage(
       chatBoxNumber,
       responseUserIdentifier,
       answer,
@@ -327,19 +327,36 @@ app.post('/ask', async (req, res) => {
   }
 });
 
+// Simple in-memory cache for context messages
+const contextCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 // Handle '/get-context' endpoint
 app.post('/get-context', async (req, res) => {
-  // Validate request body
   const { error, value } = getContextSchema.validate(req.body);
   if (error) {
-    logger.warn(`Validation error in /get-context: ${error.details[0].message}`);
-    return res.status(400).json({ error: error.details[0].message });
+    logger.error(`Validation error in /get-context: ${error.message}`);
+    return res.status(400).json({ error: error.message });
   }
 
   const { chatBoxNumbers } = value;
+  const cacheKey = chatBoxNumbers.sort().join(',');
 
   try {
-    const messages = await db.getMessages(chatBoxNumbers);
+    // Check cache first
+    const cached = contextCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return res.json({ context: cached.messages });
+    }
+
+    const database = await db;
+    const messages = await database.getMessages(chatBoxNumbers);
+    
+    // Update cache
+    contextCache.set(cacheKey, {
+      messages,
+      timestamp: Date.now()
+    });
 
     res.json({ context: messages });
   } catch (err) {
@@ -390,7 +407,8 @@ app.post('/api/bot-conversation', async (req, res) => {
         );
 
         // Store the message
-        await db.addTrainingMessage(
+        const database = await db;
+        await database.addTrainingMessage(
           conversationId,
           bot1Model,
           bot2Model,
@@ -425,7 +443,8 @@ app.post('/api/bot-conversation', async (req, res) => {
 app.get('/api/export-training-data', async (req, res) => {
   try {
     const minQualityScore = parseFloat(req.query.minQualityScore) || 0.7;
-    const trainingData = await db.exportTrainingData(minQualityScore);
+    const database = await db;
+    const trainingData = await database.exportTrainingData(minQualityScore);
     
     res.json({
       success: true,
