@@ -1,3 +1,15 @@
+/**
+ * Main server application file that handles API endpoints, database interactions,
+ * and chat functionality. Implements caching and conversation management.
+ * 
+ * Key features:
+ * - Express server setup
+ * - OpenAI integration
+ * - Database operations
+ * - Caching mechanism
+ * - Bot-to-bot conversations
+ * - Context management
+ */
 // server.js
 const express = require('express');
 const OpenAI = require('openai');
@@ -7,7 +19,9 @@ const config = require('./config');
 const { logger, ProcessManager } = require('./src/utils');
 const db = require('./src/database');
 
-// Initialize Express app
+/**
+ * Initialize Express app
+ */
 const app = express();
 app.use(express.json());
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
@@ -16,7 +30,11 @@ app.use(express.static(__dirname));
 // Server state
 let server = null;
 
-// Cleanup function
+/**
+ * Cleanup function to perform necessary cleanup operations
+ * before server shutdown. Handles database connections and
+ * active processes.
+ */
 async function cleanup() {
   if (server) {
     await new Promise(resolve => {
@@ -36,11 +54,16 @@ async function cleanup() {
   }
 }
 
-// Setup process handlers
+/**
+ * Sets up process handlers for graceful shutdown
+ * Ensures cleanup is performed when process is terminated
+ */
 ProcessManager.setupSignalHandlers(cleanup);
 
 /**
- * Function to start the server
+ * Initializes and starts the Express server
+ * Configures middleware, routes, and error handlers
+ * Attempts to find an available port if default is in use
  */
 async function startServer() {
   try {
@@ -76,7 +99,10 @@ async function startServer() {
   }
 }
 
-// Initialize OpenAI client
+/**
+ * OpenAI client initialization with configuration
+ * Sets up API key and base URL for OpenAI interactions
+ */
 const openai = new OpenAI({
   apiKey: config.openai.apiKey,
   baseURL: config.openai.baseURL
@@ -96,7 +122,11 @@ startServer().catch(async err => {
 const PORT = config.server.port;
 const MAX_PORT_ATTEMPTS = 10;
 
-// Function to kill process on a specific port (Windows)
+/**
+ * Terminates any process running on the specified port (Windows specific)
+ * @param {number} port - The port number to check
+ * Returns a promise that resolves when the process is killed
+ */
 async function killProcessOnPort(port) {
   try {
     // Find process ID using port
@@ -123,7 +153,10 @@ async function killProcessOnPort(port) {
   }
 }
 
-// Kill any existing Node process on port 3000
+/**
+ * Attempts to kill any existing Node process on port 3000
+ * Used during server startup to ensure clean port availability
+ */
 async function killExistingProcess() {
   try {
     const { stdout } = await ProcessManager.execAsync('netstat -ano | findstr :3000');
@@ -148,7 +181,11 @@ async function killExistingProcess() {
   }
 }
 
-// Function to check if a port is in use
+/**
+ * Checks if a specific port is available for use
+ * @param {number} port - The port to check
+ * @returns {Promise<boolean>} - True if port is available
+ */
 function isPortAvailable(port) {
   return new Promise((resolve) => {
     const tester = require('net').createServer()
@@ -164,7 +201,11 @@ function isPortAvailable(port) {
   });
 }
 
-// Find first available port
+/**
+ * Finds the first available port starting from the specified port
+ * @param {number} startPort - The port to start checking from
+ * @returns {Promise<number>} - First available port
+ */
 async function findAvailablePort(startPort) {
   for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
     const available = await isPortAvailable(port);
@@ -176,7 +217,10 @@ async function findAvailablePort(startPort) {
   throw new Error('No available ports found');
 }
 
-// Model constants
+/**
+ * Model constants for different AI models
+ * Defines available models and their configurations
+ */
 const MODEL_DEFAULT = 'gpt-4o-mini';
 const MODEL_OPENAI_ALTERNATE = 'gpt-4o-mini-2024-07-18';
 const MODEL_NVIDIA = 'nvidia/llama-3.1-nemotron-70b-instruct';
@@ -187,7 +231,12 @@ const ALLOWED_MODELS = config.allowedModels
   ? config.allowedModels.split(',').map(model => model.trim())
   : [MODEL_DEFAULT, MODEL_OPENAI_ALTERNATE, MODEL_NVIDIA, MODEL_META];
 
-// Helper functions to promisify db.run and db.all
+/**
+ * Promisified database run operation
+ * @param {string} sql - SQL query to execute
+ * @param {Array} params - Query parameters
+ * @returns {Promise} - Resolves when query completes
+ */
 const run = (sql, params = []) =>
   new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
@@ -199,6 +248,12 @@ const run = (sql, params = []) =>
     });
   });
 
+/**
+ * Promisified database all operation for retrieving multiple rows
+ * @param {string} sql - SQL query to execute
+ * @param {Array} params - Query parameters
+ * @returns {Promise<Array>} - Resolves with query results
+ */
 const all = (sql, params = []) =>
   new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
@@ -218,7 +273,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Handle '/ask' endpoint
+/**
+ * Handle '/ask' endpoint
+ * Validates request body, processes user query, and returns AI response
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
 app.post('/ask', async (req, res) => {
   // Validate request body
   const { error, value } = askSchema.validate(req.body);
@@ -327,11 +387,13 @@ app.post('/ask', async (req, res) => {
   }
 });
 
-// Simple in-memory cache for context messages
-const contextCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-// Handle '/get-context' endpoint
+/**
+ * Context retrieval endpoint handler
+ * Implements caching mechanism to optimize performance
+ * Fetches messages based on chat box numbers
+ * @param {Array} chatBoxNumbers - Array of chat box identifiers
+ * @returns {Object} - JSON response with context messages
+ */
 app.post('/get-context', async (req, res) => {
   const { error, value } = getContextSchema.validate(req.body);
   if (error) {
@@ -365,7 +427,15 @@ app.post('/get-context', async (req, res) => {
   }
 });
 
-// Endpoint for bot-to-bot conversation
+/**
+ * Bot-to-bot conversation endpoint
+ * Handles automated conversations between two AI models
+ * @param {string} bot1Model - First bot's model
+ * @param {string} bot2Model - Second bot's model
+ * @param {string} topic - Conversation topic
+ * @param {string} initialPrompt - Starting prompt
+ * @param {number} turns - Number of conversation turns
+ */
 app.post('/api/bot-conversation', async (req, res) => {
   try {
     const { bot1Model, bot2Model, topic, initialPrompt, turns = 5 } = req.body;
@@ -439,7 +509,11 @@ app.post('/api/bot-conversation', async (req, res) => {
   }
 });
 
-// Endpoint to export training data
+/**
+ * Endpoint to export training data
+ * @param {number} minQualityScore - Minimum quality score for exported data
+ * @returns {Object} - JSON response with training data
+ */
 app.get('/api/export-training-data', async (req, res) => {
   try {
     const minQualityScore = parseFloat(req.query.minQualityScore) || 0.7;
