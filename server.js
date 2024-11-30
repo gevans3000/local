@@ -388,6 +388,14 @@ app.post('/ask', async (req, res) => {
 });
 
 /**
+ * Cache configuration for context messages
+ * Implements a simple in-memory cache with TTL
+ */
+// Simple in-memory cache for context messages
+const contextCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+/**
  * Context retrieval endpoint handler
  * Implements caching mechanism to optimize performance
  * Fetches messages based on chat box numbers
