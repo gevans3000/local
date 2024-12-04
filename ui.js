@@ -150,17 +150,8 @@ function updateMessageDisplay(chatBoxNumber) {
     }
 
     const allMessages = messagesContainer.querySelectorAll('.message');
-    if (allMessages.length > msgCount) {
-        for (let i = msgCount; i < allMessages.length; i++) {
-            allMessages[i].style.display = 'none';
-        }
-    }
-
-    // Show the last N messages
     for (let i = 0; i < allMessages.length; i++) {
-        if (i < msgCount) {
-            allMessages[i].style.display = 'block';
-        }
+        allMessages[i].style.display = i < msgCount ? 'block' : 'none';
     }
 }
 
