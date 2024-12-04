@@ -150,9 +150,9 @@ function updateMessageDisplay(chatBoxNumber) {
     }
 
     const allMessages = messagesContainer.querySelectorAll('.message');
-    for (let i = 0; i < allMessages.length; i++) {
-        allMessages[i].style.display = i < msgCount ? 'block' : 'none';
-    }
+    allMessages.forEach((message, index) => {
+        message.style.display = index < msgCount ? 'block' : 'none';
+    });
 }
 
 /**

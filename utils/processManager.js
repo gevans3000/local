@@ -5,10 +5,21 @@ const logger = require('./logger');
 
 const execAsync = promisify(exec);
 
+// Utility function to execute a command and log errors
+async function executeCommand(command) {
+  try {
+    const { stdout } = await execAsync(command);
+    return stdout;
+  } catch (error) {
+    logger.error(`Failed to execute command: ${command}. Error: ${error.message}`);
+    throw error;
+  }
+}
+
 class ProcessManager {
   static async killProcessOnPort(port) {
     try {
-      const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
+      const stdout = await executeCommand(`netstat -ano | findstr :${port}`);
       const lines = stdout.split('\n');
       
       for (const line of lines) {
@@ -16,7 +27,7 @@ class ProcessManager {
         if (parts.length > 4 && parts[1].includes(`:${port}`)) {
           const pid = parts[parts.length - 1];
           try {
-            await execAsync(`taskkill /F /PID ${pid}`);
+            await executeCommand(`taskkill /F /PID ${pid}`);
             logger.info(`Killed process ${pid} on port ${port}`);
           } catch (err) {
             logger.warn(`Process ${pid} not found or already terminated`);
