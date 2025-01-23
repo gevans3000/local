@@ -2,7 +2,7 @@
 
 ## The Future of AI Training is Here
 
-Tired of manually babysitting your LLM training processes? Say goodbye to endless monitoring and hello to true AI autonomy! AutoLLM Trainer revolutionizes the way we approach small language model training by making it completely hands-free.
+Say goodbye to endless monitoring and hello to true AI autonomy! AutoLLM Trainer revolutionizes the way we approach small language model training by making it completely hands-free.
 
 ### 🌟 Key Features
 
